@@ -4,8 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InterviewSession, InterviewStatus } from './interview-session.entity';
 import { InterviewQA } from './interview-qa.entity';
-import { AIService, DetailedEvaluation } from './ai.service';
-
+import { AIService, DetailedEvaluation, QuestionHint } from './ai.service';
 @Injectable()
 export class InterviewService {
   constructor(
@@ -60,6 +59,8 @@ export class InterviewService {
       throw new Error('Interview completed');
     }
 
+    
+
     // 🆕 Determine question category
     const categories = ['behavioral', 'technical', 'situational', 'competency', 'problemSolving'];
     const category = categories[(nextNumber - 1) % categories.length];
@@ -86,6 +87,30 @@ export class InterviewService {
 
     return { question, questionNumber: nextNumber, audioBuffer, category };
   }
+
+  async getQuestionHint(sessionId: string, questionNumber: number): Promise<QuestionHint> {
+    console.log('💡 Generating hint for question:', { sessionId, questionNumber });
+
+    // Get the question
+    const qa = await this.qaRepo.findOne({ where: { sessionId, questionNumber } });
+    if (!qa) {
+      throw new NotFoundException(`Question ${questionNumber} not found`);
+    }
+
+    // Get session for role/type context
+    const session = await this.getSession(sessionId);
+
+    // Generate hint using AI
+    const hint = await this.aiService.generateQuestionHint(
+      qa.question,
+      session.role,
+      session.interviewType,
+    );
+
+    console.log('✅ Hint generated');
+    return hint;
+  }
+
 
   // 🆕 Process answer with enhanced multi-agent evaluation
   async processAnswer(

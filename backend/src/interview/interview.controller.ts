@@ -90,6 +90,15 @@ export class InterviewController {
       res.status(400).json({ error: err.message });
     }
   }
+  @Post('sessions/:id/hint')
+  async getQuestionHint(
+    @Param('id') sessionId: string,
+    @Body() body: { questionNumber: number },
+  ) {
+    return this.service.getQuestionHint(sessionId, body.questionNumber);
+  }
+
+
 
   // 🆕 POST /interview/sessions/:id/submit-answer - Upload audio answer
   @Post('sessions/:id/submit-answer')

@@ -24,6 +24,11 @@ export interface DetailedEvaluation {
   redFlags: string[];
   followUpQuestions: string[];
 }
+export interface QuestionHint {
+  hint: string;
+  examples?: string[];
+  keyTerms?: string[];
+}
 
 const QUESTION_CATEGORIES = {
   behavioral: [
@@ -99,6 +104,7 @@ export class AIService {
       return fallback;
     }
   }
+  
 
   private getQuestionCategory(questionNumber: number): string {
     const categories = Object.keys(QUESTION_CATEGORIES);
@@ -110,6 +116,65 @@ export class AIService {
     const starters = QUESTION_CATEGORIES[category as keyof typeof QUESTION_CATEGORIES] || [];
     return starters[Math.floor(Math.random() * starters.length)] || '';
   }
+
+  async generateQuestionHint(
+    question: string,
+    role: string,
+    interviewType: string,
+  ): Promise<QuestionHint> {
+    try {
+      const prompt = `You are helping an interview candidate understand a question better WITHOUT giving away the answer.
+
+QUESTION: ${question}
+ROLE: ${role}
+INTERVIEW TYPE: ${interviewType}
+
+Your task: Provide a helpful hint that:
+1. Clarifies what the question is really asking
+2. Explains key concepts or terminology
+3. Suggests what aspects to consider in the answer
+4. Does NOT provide the actual answer or specific examples to use
+
+CRITICAL: Return ONLY valid JSON with this structure:
+{
+  "hint": "A clear, concise explanation of what the question is asking (2-3 sentences)",
+  "keyTerms": ["term1", "term2", "term3"],
+  "examples": ["Example type 1 to consider", "Example type 2 to consider"]
+}`;
+
+      const completion = await this.groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful interview coach who clarifies questions without giving away answers. Respond with valid JSON only.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
+      });
+
+      const responseText = completion.choices[0]?.message?.content || '{}';
+      const result = this.safeJsonParse<QuestionHint>(responseText, {
+        hint: 'Consider breaking down the question into parts: What is being asked? What experience or knowledge would be relevant? What would a strong answer demonstrate?',
+        keyTerms: ['experience', 'approach', 'methodology'],
+        examples: ['Past projects', 'Problem-solving approach', 'Team collaboration'],
+      });
+
+      console.log('💡 Generated hint:', result.hint);
+      return result;
+    } catch (error: any) {
+      console.error('❌ Hint generation failed:', error);
+      return {
+        hint: 'Think about: What is this question trying to evaluate? What specific experiences or knowledge would demonstrate your capability in this area?',
+        keyTerms: ['experience', 'skills', 'approach'],
+        examples: ['Relevant past work', 'Problem-solving methods', 'Results achieved'],
+      };
+    }
+  }
+
 
   async transcribeAudio(audioBuffer: Buffer, filename: string = 'audio.webm'): Promise<string> {
     try {
