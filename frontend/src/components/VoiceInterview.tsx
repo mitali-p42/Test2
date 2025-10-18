@@ -18,7 +18,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [showEndConfirm, setShowEndConfirm] = useState(false); // 🆕 Confirmation dialog
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -82,6 +82,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   async function fetchNextQuestion() {
     setIsProcessing(true);
     setTranscript('');
+    setCurrentQuestion(''); // Clear question for typewriter
     
     try {
       console.log('🎯 Fetching question for session:', sessionId);
@@ -111,29 +112,37 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         throw new Error('Invalid question number');
       }
 
-      setCurrentQuestion(data.question);
       setQuestionNumber(data.questionNumber);
       questionNumberRef.current = data.questionNumber;
 
-      // Play audio
+      // Play audio and sync typewriter
       try {
         const audioBuffer = Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0));
         const blob = new Blob([audioBuffer], { type: 'audio/mp3' });
         const audio = new Audio(URL.createObjectURL(blob));
         
-        audio.onended = () => {
+        // Start typewriter immediately when audio starts playing
+        audio.addEventListener('play', () => {
+          console.log('🔊 Audio started, beginning typewriter effect');
+          // Small delay to ensure state updates properly
+          setTimeout(() => setCurrentQuestion(data.question), 100);
+        });
+
+        audio.addEventListener('ended', () => {
           console.log('🔊 Audio finished, starting recording in 500ms');
           setTimeout(() => startRecording(data.questionNumber), 500);
-        };
+        });
         
-        audio.onerror = () => {
+        audio.addEventListener('error', () => {
           console.error('❌ Audio error, starting recording anyway');
+          setCurrentQuestion(data.question);
           setTimeout(() => startRecording(data.questionNumber), 500);
-        };
+        });
         
         await audio.play();
       } catch (audioErr) {
         console.error('❌ Audio error:', audioErr);
+        setCurrentQuestion(data.question);
         setTimeout(() => startRecording(data.questionNumber), 500);
       }
     } catch (err: any) {
@@ -416,11 +425,9 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     }
   }
 
-  // 🆕 Handle early interview termination
   async function handleEndInterview() {
     setShowEndConfirm(false);
     
-    // Stop recording if active
     if (isRecording) {
       stopRecording();
     }
@@ -429,23 +436,33 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     await completeInterview();
   }
 
-  // 🆕 Typewriter effect for question text
+  // Typewriter component with adjustable speed
   function TypewriterText({ text }: { text: string }) {
     const [displayedText, setDisplayedText] = useState('');
     const [currentIndex, setCurrentIndex] = useState(0);
+
+    useEffect(() => {
+      setDisplayedText('');
+      setCurrentIndex(0);
+    }, [text]);
 
     useEffect(() => {
       if (currentIndex < text.length) {
         const timeout = setTimeout(() => {
           setDisplayedText(prev => prev + text[currentIndex]);
           setCurrentIndex(prev => prev + 1);
-        }, 50); // 50ms per character
+        }, 50); // 50ms per character ≈ natural reading speed
         
         return () => clearTimeout(timeout);
       }
     }, [currentIndex, text]);
 
-    return <span>{displayedText}<span className="cursor-blink">|</span></span>;
+    return (
+      <span>
+        {displayedText}
+        {currentIndex < text.length && <span className="cursor-blink">|</span>}
+      </span>
+    );
   }
 
   return (
@@ -463,7 +480,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       )}
 
       <div style={{ marginBottom: 24, padding: 16, background: '#f3f4f6', borderRadius: 8 }}>
-        {/* 🆕 Only show question number after first question is generated */}
         {questionNumber > 0 && (
           <h2 style={{ margin: 0, marginBottom: 12 }}>
             Question {questionNumber} of 5
@@ -472,7 +488,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         
         {currentQuestion ? (
           <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0', minHeight: 60 }}>
-            <TypewriterText text={currentQuestion} />
+            <TypewriterText key={currentQuestion} text={currentQuestion} />
           </p>
         ) : (
           <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0', minHeight: 60, color: '#9ca3af' }}>
@@ -524,7 +540,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
               </div>
             </div>
             <p style={{ fontSize: 16, color: '#666', marginBottom: 8 }}>
-              🎤 Recording... (auto-stops after 3s silence)
+              🎤 Recording... (auto-stops after 6s silence)
             </p>
             <button
               onClick={stopRecording}
@@ -559,7 +575,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         )}
       </div>
 
-      {/* 🆕 End Interview Button */}
+      {/* End Interview Button - Always visible when interview has started */}
       {questionNumber > 0 && !showEndConfirm && (
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <button
@@ -581,7 +597,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         </div>
       )}
 
-      {/* 🆕 Confirmation Dialog */}
+      {/* Confirmation Dialog */}
       {showEndConfirm && (
         <div style={{
           position: 'fixed',
