@@ -167,4 +167,73 @@ export class InterviewService {
       order: { questionNumber: 'ASC' },
     });
   }
+
+  async getSessionResults(sessionId: string) {
+  // Get session with user info
+  const session = await this.sessionRepo
+    .createQueryBuilder('s')
+    .leftJoinAndSelect('s.user', 'u')
+    .where('s.sessionId = :sessionId', { sessionId })
+    .select([
+      's.sessionId',
+      's.role',
+      's.interviewType',
+      's.status',
+      's.startedAt',
+      's.completedAt',
+      's.createdAt',
+      'u.id',
+      'u.email',
+    ])
+    .getOne();
+
+  if (!session) {
+    throw new NotFoundException('Session not found');
+  }
+
+  // Get all Q&A with evaluations
+  const qaList = await this.qaRepo.find({
+    where: { sessionId },
+    order: { questionNumber: 'ASC' },
+    select: [
+      'qaId',
+      'questionNumber',
+      'question',
+      'answer',
+      'transcript',
+      'evaluation',
+      'createdAt',
+    ],
+  });
+
+  return {
+    session: {
+      sessionId: session.sessionId,
+      userId: session.user.id,
+      userEmail: session.user.email,
+      role: session.role,
+      interviewType: session.interviewType,
+      status: session.status,
+      startedAt: session.startedAt,
+      completedAt: session.completedAt,
+      totalQuestions: qaList.length,
+    },
+    questions: qaList.map(qa => ({
+      questionId: qa.qaId,
+      questionNumber: qa.questionNumber,
+      question: qa.question,
+      answer: qa.answer,
+      transcript: qa.transcript,
+      evaluation: qa.evaluation,
+      answeredAt: qa.createdAt,
+    })),
+    summary: {
+      averageScore: qaList.length > 0
+        ? qaList.reduce((sum, qa) => sum + (qa.evaluation?.score || 0), 0) / qaList.length
+        : 0,
+      totalAnswered: qaList.filter(qa => qa.answer).length,
+      totalQuestions: qaList.length,
+    },
+  };
+}
 }

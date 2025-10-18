@@ -114,4 +114,8 @@ export class InterviewController {
   async getSessionQAs(@Param('id') sessionId: string) {
     return this.service.getSessionQAs(sessionId);
   }
+  @Get('sessions/:id/results')
+  async getSessionResults(@Param('id') sessionId: string) {
+    return this.service.getSessionResults(sessionId);
+  }
 }

@@ -24,6 +24,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const analyserRef = useRef<AnalyserNode | null>(null);
   const isRecordingRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
+  const questionNumberRef = useRef(0); // 👈 NEW: Add ref to track question number
 
   const token = localStorage.getItem('token');
   const API_BASE = import.meta.env.VITE_API_BASE;
@@ -120,8 +121,10 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         throw new Error('Invalid question number received from server');
       }
 
+      // 👇 UPDATE: Store in both state and ref
       setCurrentQuestion(data.question);
       setQuestionNumber(data.questionNumber);
+      questionNumberRef.current = data.questionNumber; // 👈 NEW
 
       // Play question audio
       try {
@@ -131,13 +134,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         
         audio.onended = () => {
           console.log('🔊 Audio playback completed, starting recording in 500ms');
-          setTimeout(() => startRecording(), 500);
+          // 👇 FIXED: Pass questionNumber directly
+          setTimeout(() => startRecording(data.questionNumber), 500);
         };
         
         audio.onerror = (e) => {
           console.error('❌ Audio playback error:', e);
           alert('Failed to play question audio. Starting recording anyway...');
-          setTimeout(() => startRecording(), 500);
+          // 👇 FIXED: Pass questionNumber directly
+          setTimeout(() => startRecording(data.questionNumber), 500);
         };
         
         console.log('🔊 Playing question audio...');
@@ -145,7 +150,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       } catch (audioErr) {
         console.error('❌ Audio processing error:', audioErr);
         alert('Failed to play audio. Starting recording...');
-        setTimeout(() => startRecording(), 500);
+        // 👇 FIXED: Pass questionNumber directly
+        setTimeout(() => startRecording(data.questionNumber), 500);
       }
     } catch (err: any) {
       console.error('❌ Failed to fetch question:', err);
@@ -156,11 +162,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     }
   }
 
-  async function startRecording() {
+  // 👇 FIXED: Accept optional questionNumber parameter
+  async function startRecording(qNum?: number) {
     try {
-      console.log('🎤 Starting recording for question:', questionNumber);
+      // 👇 Use parameter if provided, otherwise use ref (more reliable than state)
+      const activeQuestionNumber = qNum ?? questionNumberRef.current;
       
-      if (!questionNumber || questionNumber === 0) {
+      console.log('🎤 Starting recording for question:', activeQuestionNumber);
+      
+      if (!activeQuestionNumber || activeQuestionNumber === 0) {
         console.error('❌ Cannot start recording: invalid question number');
         alert('Error: No question loaded. Please try again.');
         setIsProcessing(false);
@@ -259,7 +269,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     const dataArray = new Uint8Array(bufferLength);
     let silenceStart: number | null = null;
     const SILENCE_THRESHOLD = 15;
-    const SILENCE_DURATION = 2000;
+    const SILENCE_DURATION = 15000;
 
     const checkAudio = () => {
       if (!isRecordingRef.current || !analyserRef.current) {
@@ -333,16 +343,19 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
     const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
     
+    // 👇 Use ref instead of state for more reliable value
+    const currentQuestionNumber = questionNumberRef.current;
+    
     console.log('📤 Submitting answer:', {
       sessionId,
-      questionNumber,
+      questionNumber: currentQuestionNumber,
       blobSize: audioBlob.size,
       mimeType,
       chunks: audioChunksRef.current.length
     });
     
     // Validate before submitting
-    if (!questionNumber || questionNumber === 0) {
+    if (!currentQuestionNumber || currentQuestionNumber === 0) {
       console.error('❌ Cannot submit: invalid question number');
       alert('Error: Invalid question number. Please refresh and try again.');
       setIsProcessing(false);
@@ -368,7 +381,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     
     const formData = new FormData();
     formData.append('audio', audioBlob, `answer.${extension}`);
-    formData.append('questionNumber', questionNumber.toString());
+    formData.append('questionNumber', currentQuestionNumber.toString());
     formData.append('yearsOfExperience', profile.yearsOfExperience.toString());
 
     try {
@@ -391,7 +404,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         // Handle specific errors
         if (res.status === 404) {
           alert(
-            `Question ${questionNumber} not found in the database.\n\n` +
+            `Question ${currentQuestionNumber} not found in the database.\n\n` +
             `This might be a timing issue. Please:\n` +
             `1. Refresh the page\n` +
             `2. Start a new interview session\n\n` +
@@ -410,25 +423,33 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       
       setTranscript(data.transcript || 'No transcript received');
 
-      if (data.evaluation) {
-        const evalMsg = `
-Score: ${data.evaluation.score}/100
+//       if (data.evaluation) {
+//         const evalMsg = `
+// Score: ${data.evaluation.score}/100
 
-${data.evaluation.feedback}
+// ${data.evaluation.feedback}
 
-Strengths:
-${data.evaluation.strengths?.map((s: string) => `• ${s}`).join('\n') || 'None listed'}
+// Strengths:
+// ${data.evaluation.strengths?.map((s: string) => `• ${s}`).join('\n') || 'None listed'}
 
-Areas for Improvement:
-${data.evaluation.improvements?.map((i: string) => `• ${i}`).join('\n') || 'None listed'}
-        `.trim();
+// Areas for Improvement:
+// ${data.evaluation.improvements?.map((i: string) => `• ${i}`).join('\n') || 'None listed'}
+//         `.trim();
         
-        alert(evalMsg);
-      }
+//         alert(evalMsg);
+//       }
+      if (data.evaluation) {
+      console.log('📊 Evaluation received:', {
+        score: data.evaluation.score,
+        feedback: data.evaluation.feedback,
+        strengths: data.evaluation.strengths,
+        improvements: data.evaluation.improvements,
+      });
+    }
 
       // Wait a bit before moving to next question
       setTimeout(() => {
-        if (questionNumber < 5) {
+        if (currentQuestionNumber < 5) {
           console.log('📝 Moving to next question...');
           fetchNextQuestion();
         } else {
