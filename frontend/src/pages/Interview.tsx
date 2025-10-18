@@ -89,9 +89,9 @@ export default function Interview() {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ maxWidth: 800, margin: '0 auto', marginBottom: 24 }}>
-        <h1>Live Interview</h1>
+        <h1> {profile.interviewType} Interview</h1>
         <p style={{ color: '#666' }}>
-          <strong>Role:</strong> {profile.role} | <strong>Type:</strong> {profile.interviewType}
+          <strong>Role:</strong> {profile.role} {/* | <strong>Type:</strong> {profile.interviewType} */}
         </p>
       </div>
 
