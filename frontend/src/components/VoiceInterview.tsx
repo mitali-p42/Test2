@@ -1,4 +1,4 @@
-// frontend/src/components/VoiceInterview.tsx - FIXED VERSION
+// frontend/src/components/VoiceInterview.tsx
 import React, { useState, useRef, useEffect } from 'react';
 
 type Props = {
@@ -17,7 +17,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [transcript, setTranscript] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0); // 👈 NEW: Show audio level
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [showEndConfirm, setShowEndConfirm] = useState(false); // 🆕 Confirmation dialog
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -26,7 +27,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const isRecordingRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
   const questionNumberRef = useRef(0);
-  const silenceStartRef = useRef<number | null>(null); // 👈 FIXED: Use ref instead of local var
+  const silenceStartRef = useRef<number | null>(null);
 
   const token = localStorage.getItem('token');
   const API_BASE = import.meta.env.VITE_API_BASE;
@@ -166,7 +167,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         }
       });
       
-      // Setup audio analysis
       audioContextRef.current = new AudioContext();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
@@ -207,7 +207,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       isRecordingRef.current = true;
       setTranscript('🎤 Recording... (speak clearly)');
       setIsProcessing(false);
-      silenceStartRef.current = null; // 👈 RESET
+      silenceStartRef.current = null;
 
       console.log('✅ Recording started');
       detectSilence();
@@ -232,17 +232,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     }
   }
 
-  // 👇 COMPLETELY REWRITTEN: Much more reliable silence detection
   function detectSilence() {
     if (!analyserRef.current) return;
 
     const bufferLength = analyserRef.current.fftSize;
     const dataArray = new Uint8Array(bufferLength);
     
-    // 🔧 FIXED VALUES:
-    const SILENCE_THRESHOLD = 5;      // 👈 Changed from 15 to 5 (much less sensitive)
-    const SILENCE_DURATION = 6000;     // 👈 Changed from 15000 to 3000 (3 seconds)
-    const MIN_RECORDING_TIME = 2000;   // 👈 NEW: Don't stop before 2 seconds
+    const SILENCE_THRESHOLD = 5;
+    const SILENCE_DURATION = 6000;
+    const MIN_RECORDING_TIME = 2000;
     const recordingStartTime = Date.now();
 
     const checkAudio = () => {
@@ -253,7 +251,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       analyserRef.current.getByteTimeDomainData(dataArray);
 
-      // Calculate average audio level
       let sum = 0;
       for (let i = 0; i < bufferLength; i++) {
         const value = Math.abs(dataArray[i] - 128);
@@ -261,10 +258,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       }
       const average = sum / bufferLength;
 
-      // Update UI with audio level
       setAudioLevel(average);
 
-      // Log periodically (10% chance)
       if (Math.random() < 0.1) {
         console.log('🔉 Audio level:', average.toFixed(2), 
                     silenceStartRef.current ? `(silent for ${((Date.now() - silenceStartRef.current) / 1000).toFixed(1)}s)` : '');
@@ -272,7 +267,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       const recordingDuration = Date.now() - recordingStartTime;
 
-      // Check for silence
       if (average < SILENCE_THRESHOLD) {
         if (!silenceStartRef.current) {
           silenceStartRef.current = Date.now();
@@ -280,7 +274,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         } else {
           const silenceDuration = Date.now() - silenceStartRef.current;
           
-          // Only stop if we've been recording long enough AND silent long enough
           if (recordingDuration > MIN_RECORDING_TIME && silenceDuration > SILENCE_DURATION) {
             console.log(`✅ ${SILENCE_DURATION/1000}s silence detected after ${(recordingDuration/1000).toFixed(1)}s recording`);
             stopRecording();
@@ -392,7 +385,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         console.log('📊 Evaluation:', data.evaluation);
       }
 
-      // Next question or complete
       setTimeout(() => {
         if (currentQuestionNumber < 5) {
           console.log('📝 Next question...');
@@ -424,6 +416,38 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     }
   }
 
+  // 🆕 Handle early interview termination
+  async function handleEndInterview() {
+    setShowEndConfirm(false);
+    
+    // Stop recording if active
+    if (isRecording) {
+      stopRecording();
+    }
+    
+    setIsProcessing(true);
+    await completeInterview();
+  }
+
+  // 🆕 Typewriter effect for question text
+  function TypewriterText({ text }: { text: string }) {
+    const [displayedText, setDisplayedText] = useState('');
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    useEffect(() => {
+      if (currentIndex < text.length) {
+        const timeout = setTimeout(() => {
+          setDisplayedText(prev => prev + text[currentIndex]);
+          setCurrentIndex(prev => prev + 1);
+        }, 50); // 50ms per character
+        
+        return () => clearTimeout(timeout);
+      }
+    }, [currentIndex, text]);
+
+    return <span>{displayedText}<span className="cursor-blink">|</span></span>;
+  }
+
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
       {isSafari && (
@@ -439,12 +463,22 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       )}
 
       <div style={{ marginBottom: 24, padding: 16, background: '#f3f4f6', borderRadius: 8 }}>
-        <h2 style={{ margin: 0, marginBottom: 12 }}>
-          Question {questionNumber || '—'} of 5
-        </h2>
-        <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0' }}>
-          {currentQuestion || 'Loading...'}
-        </p>
+        {/* 🆕 Only show question number after first question is generated */}
+        {questionNumber > 0 && (
+          <h2 style={{ margin: 0, marginBottom: 12 }}>
+            Question {questionNumber} of 5
+          </h2>
+        )}
+        
+        {currentQuestion ? (
+          <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0', minHeight: 60 }}>
+            <TypewriterText text={currentQuestion} />
+          </p>
+        ) : (
+          <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0', minHeight: 60, color: '#9ca3af' }}>
+            Ready to begin your interview...
+          </p>
+        )}
       </div>
 
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
@@ -477,7 +511,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
               animation: 'pulse 1.5s infinite',
               position: 'relative',
             }}>
-              {/* 👇 NEW: Audio level indicator */}
               <div style={{
                 position: 'absolute',
                 bottom: -30,
@@ -505,7 +538,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
                 fontWeight: 500,
               }}
             >
-              Stop Recording
+              Stop Manually
             </button>
           </>
         )}
@@ -526,6 +559,86 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         )}
       </div>
 
+      {/* 🆕 End Interview Button */}
+      {questionNumber > 0 && !showEndConfirm && (
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <button
+            onClick={() => setShowEndConfirm(true)}
+            disabled={isProcessing}
+            style={{
+              padding: '10px 20px',
+              background: '#ef4444',
+              color: 'white',
+              border: 0,
+              borderRadius: 8,
+              cursor: isProcessing ? 'not-allowed' : 'pointer',
+              fontWeight: 500,
+              opacity: isProcessing ? 0.5 : 1,
+            }}
+          >
+            🛑 End Interview Early
+          </button>
+        </div>
+      )}
+
+      {/* 🆕 Confirmation Dialog */}
+      {showEndConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'white',
+            padding: 32,
+            borderRadius: 16,
+            maxWidth: 400,
+            textAlign: 'center',
+          }}>
+            <h3 style={{ marginTop: 0 }}>End Interview?</h3>
+            <p style={{ color: '#666', marginBottom: 24 }}>
+              Are you sure you want to end this interview? You've answered {questionNumber} out of 5 questions.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                style={{
+                  padding: '10px 24px',
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Continue Interview
+              </button>
+              <button
+                onClick={handleEndInterview}
+                style={{
+                  padding: '10px 24px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 0,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Yes, End Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {transcript && (
         <div style={{ padding: 20, background: '#f9fafb', borderRadius: 8, minHeight: 100 }}>
           <h3 style={{ marginTop: 0 }}>Transcript</h3>
@@ -542,6 +655,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+
+        .cursor-blink {
+          animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+          0%, 49% { opacity: 1; }
+          50%, 100% { opacity: 0; }
         }
       `}</style>
     </div>
