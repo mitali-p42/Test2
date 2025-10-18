@@ -169,7 +169,7 @@ Generate ONE clear, focused question (no numbering or preamble):`;
           },
           { role: 'user', content: prompt },
         ],
-        temperature: 0.8, // High diversity
+        temperature: 0.85, // High diversity
         top_p: 0.9,
         max_tokens: 180,
       });

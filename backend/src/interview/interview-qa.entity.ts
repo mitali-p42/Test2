@@ -20,11 +20,19 @@ export class InterviewQA {
   @JoinColumn({ name: 'session_id' })
   session!: InterviewSession;
 
+  // 🆕 Add user_id
+  @Column('uuid', { name: 'user_id' })
+  userId!: string;
+
   @Column({ name: 'question_number', type: 'int' })
   questionNumber!: number;
 
   @Column({ name: 'question', type: 'text' })
   question!: string;
+
+  // 🆕 Add question_category
+  @Column({ name: 'question_category', type: 'text', nullable: true })
+  questionCategory!: string | null;
 
   @Column({ name: 'answer', type: 'text', nullable: true })
   answer!: string | null;
@@ -32,7 +40,56 @@ export class InterviewQA {
   @Column({ name: 'transcript', type: 'text', nullable: true })
   transcript!: string | null;
 
-  // JSONB column for AI evaluation results
+  // 🆕 Detailed Evaluation Scores (0-100)
+  @Column({ name: 'overall_score', type: 'int', nullable: true })
+  overallScore!: number | null;
+
+  @Column({ name: 'technical_accuracy', type: 'int', nullable: true })
+  technicalAccuracy!: number | null;
+
+  @Column({ name: 'communication_clarity', type: 'int', nullable: true })
+  communicationClarity!: number | null;
+
+  @Column({ name: 'depth_of_knowledge', type: 'int', nullable: true })
+  depthOfKnowledge!: number | null;
+
+  @Column({ name: 'problem_solving_approach', type: 'int', nullable: true })
+  problemSolvingApproach!: number | null;
+
+  @Column({ name: 'relevance_to_role', type: 'int', nullable: true })
+  relevanceToRole!: number | null;
+
+  // 🆕 Qualitative Assessment
+  @Column({ name: 'feedback', type: 'text', nullable: true })
+  feedback!: string | null;
+
+  @Column({ name: 'strengths', type: 'text', array: true, nullable: true })
+  strengths!: string[] | null;
+
+  @Column({ name: 'improvements', type: 'text', array: true, nullable: true })
+  improvements!: string[] | null;
+
+  @Column({ name: 'key_insights', type: 'text', array: true, nullable: true })
+  keyInsights!: string[] | null;
+
+  // 🆕 Metadata
+  @Column({ name: 'word_count', type: 'int', nullable: true })
+  wordCount!: number | null;
+
+  @Column({ name: 'answer_duration_seconds', type: 'int', nullable: true })
+  answerDurationSeconds!: number | null;
+
+  @Column({ name: 'confidence', type: 'varchar', length: 10, nullable: true })
+  confidence!: 'low' | 'medium' | 'high' | null;
+
+  // 🆕 Red Flags and Follow-ups
+  @Column({ name: 'red_flags', type: 'text', array: true, nullable: true })
+  redFlags!: string[] | null;
+
+  @Column({ name: 'follow_up_questions', type: 'text', array: true, nullable: true })
+  followUpQuestions!: string[] | null;
+
+  // 🆕 Legacy JSONB field (kept for backward compatibility)
   @Column({ name: 'evaluation', type: 'jsonb', nullable: true })
   evaluation!: {
     score?: number;
@@ -40,9 +97,6 @@ export class InterviewQA {
     strengths?: string[];
     improvements?: string[];
   } | null;
-
-  @Column({ name: 'duration_seconds', type: 'int', nullable: true })
-  durationSeconds!: number | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

@@ -505,7 +505,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
                 fontWeight: 500,
               }}
             >
-              Stop Manually
+              Stop Recording
             </button>
           </>
         )}
