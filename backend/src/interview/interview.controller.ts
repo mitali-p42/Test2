@@ -83,6 +83,12 @@ export class InterviewController {
     @Body() body: { questionNumber: string; yearsOfExperience?: string },
     @UploadedFile() file: Express.Multer.File,
   ) {
+    console.log('📥 Received answer submission:', {
+    sessionId,
+    questionNumber: body.questionNumber,
+    hasFile: !!file,
+    fileSize: file?.size
+    });
     if (!file) {
       throw new Error('No audio file uploaded');
     }

@@ -86,7 +86,11 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
   async function fetchNextQuestion() {
     setIsProcessing(true);
+    setTranscript(''); // Clear previous transcript
+    
     try {
+      console.log('🎯 Fetching next question for session:', sessionId);
+      
       const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/next-question`, {
         method: 'POST',
         headers: {
@@ -98,39 +102,71 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       if (!res.ok) {
         const error = await res.text();
-        console.error('Failed to fetch question:', error);
+        console.error('❌ Failed to fetch question:', error);
         throw new Error('Failed to load question');
       }
 
       const data = await res.json();
+      
+      console.log('✅ Question loaded:', {
+        questionNumber: data.questionNumber,
+        questionLength: data.question?.length,
+        hasAudio: !!data.audioBase64
+      });
+
+      // Validate questionNumber
+      if (!data.questionNumber || data.questionNumber === 0) {
+        console.error('❌ Invalid question number:', data.questionNumber);
+        throw new Error('Invalid question number received from server');
+      }
+
       setCurrentQuestion(data.question);
       setQuestionNumber(data.questionNumber);
 
-      const audioBuffer = Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0));
-      const blob = new Blob([audioBuffer], { type: 'audio/mp3' });
-      const audio = new Audio(URL.createObjectURL(blob));
-      
-      audio.onended = () => {
+      // Play question audio
+      try {
+        const audioBuffer = Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0));
+        const blob = new Blob([audioBuffer], { type: 'audio/mp3' });
+        const audio = new Audio(URL.createObjectURL(blob));
+        
+        audio.onended = () => {
+          console.log('🔊 Audio playback completed, starting recording in 500ms');
+          setTimeout(() => startRecording(), 500);
+        };
+        
+        audio.onerror = (e) => {
+          console.error('❌ Audio playback error:', e);
+          alert('Failed to play question audio. Starting recording anyway...');
+          setTimeout(() => startRecording(), 500);
+        };
+        
+        console.log('🔊 Playing question audio...');
+        await audio.play();
+      } catch (audioErr) {
+        console.error('❌ Audio processing error:', audioErr);
+        alert('Failed to play audio. Starting recording...');
         setTimeout(() => startRecording(), 500);
-      };
-      
-      audio.onerror = (e) => {
-        console.error('Audio playback error:', e);
-        alert('Failed to play question audio. Starting recording anyway...');
-        setTimeout(() => startRecording(), 500);
-      };
-      
-      await audio.play();
-    } catch (err) {
-      console.error('Failed to fetch question:', err);
-      alert('Failed to load next question');
-    } finally {
+      }
+    } catch (err: any) {
+      console.error('❌ Failed to fetch question:', err);
+      alert(`Failed to load next question: ${err.message}`);
       setIsProcessing(false);
+    } finally {
+      // Don't set isProcessing to false here - wait for recording to start
     }
   }
 
   async function startRecording() {
     try {
+      console.log('🎤 Starting recording for question:', questionNumber);
+      
+      if (!questionNumber || questionNumber === 0) {
+        console.error('❌ Cannot start recording: invalid question number');
+        alert('Error: No question loaded. Please try again.');
+        setIsProcessing(false);
+        return;
+      }
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Audio recording is not supported in this browser');
       }
@@ -140,7 +176,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          // Safari-friendly constraints
           sampleRate: 44100,
           channelCount: 1,
         }
@@ -157,9 +192,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       const options: MediaRecorderOptions = {};
       if (mimeType) {
         options.mimeType = mimeType;
-        // Safari benefits from explicit bitrate
         if (isSafari && mimeType.includes('mp4')) {
-          options.audioBitsPerSecond = 128000; // 128kbps
+          options.audioBitsPerSecond = 128000;
         }
       }
       
@@ -173,29 +207,30 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       mediaRecorderRef.current.ondataavailable = (e) => {
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data);
-          console.log('Audio chunk received:', e.data.size, 'bytes');
+          console.log('📦 Audio chunk received:', e.data.size, 'bytes');
         }
       };
 
       mediaRecorderRef.current.onstop = handleRecordingStop;
       
       mediaRecorderRef.current.onerror = (e: Event) => {
-        console.error('MediaRecorder error:', e);
+        console.error('❌ MediaRecorder error:', e);
         alert('Recording error occurred. Please try again.');
         stopRecording();
       };
 
-      // Safari works better with larger timeslice
       const timeslice = isSafari ? 1000 : 100;
       mediaRecorderRef.current.start(timeslice);
       
       setIsRecording(true);
       isRecordingRef.current = true;
-      setTranscript('Listening...');
+      setTranscript('🎤 Listening...');
+      setIsProcessing(false); // Recording started successfully
 
+      console.log('✅ Recording started');
       detectSilence();
     } catch (err: any) {
-      console.error('Recording failed:', err);
+      console.error('❌ Recording failed:', err);
       
       let userMessage = 'Failed to start recording';
       if (err.name === 'NotAllowedError') {
@@ -228,7 +263,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
     const checkAudio = () => {
       if (!isRecordingRef.current || !analyserRef.current) {
-        console.log('Stopping silence detection');
+        console.log('⏹️ Stopping silence detection');
         return;
       }
 
@@ -242,21 +277,21 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       const average = sum / bufferLength;
 
       if (Math.random() < 0.1) {
-        console.log('Audio level:', average.toFixed(2));
+        console.log('🔉 Audio level:', average.toFixed(2));
       }
 
       if (average < SILENCE_THRESHOLD) {
         if (!silenceStart) {
           silenceStart = Date.now();
-          console.log('Silence started');
+          console.log('🔇 Silence started');
         } else if (Date.now() - silenceStart > SILENCE_DURATION) {
-          console.log('2 seconds of silence detected, stopping recording');
+          console.log('✅ 2 seconds of silence detected, stopping recording');
           stopRecording();
           return;
         }
       } else {
         if (silenceStart) {
-          console.log('Sound detected, resetting silence timer');
+          console.log('🔊 Sound detected, resetting silence timer');
         }
         silenceStart = null;
       }
@@ -268,7 +303,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   }
 
   function stopRecording() {
-    console.log('Stopping recording...');
+    console.log('⏹️ Stopping recording...');
     isRecordingRef.current = false;
     
     if (animationFrameRef.current) {
@@ -290,16 +325,32 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   }
 
   async function handleRecordingStop() {
+    console.log('🛑 Recording stopped, processing answer...');
+    
     setIsProcessing(true);
-    setTranscript('Processing your answer...');
+    setTranscript('⏳ Processing your answer...');
 
     const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
     const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
     
-    console.log('Audio blob size:', audioBlob.size, 'bytes');
-    console.log('MIME type:', mimeType);
+    console.log('📤 Submitting answer:', {
+      sessionId,
+      questionNumber,
+      blobSize: audioBlob.size,
+      mimeType,
+      chunks: audioChunksRef.current.length
+    });
     
+    // Validate before submitting
+    if (!questionNumber || questionNumber === 0) {
+      console.error('❌ Cannot submit: invalid question number');
+      alert('Error: Invalid question number. Please refresh and try again.');
+      setIsProcessing(false);
+      return;
+    }
+
     if (audioBlob.size === 0) {
+      console.error('❌ Cannot submit: no audio recorded');
       alert('No audio recorded. Please try again.');
       setIsProcessing(false);
       return;
@@ -308,7 +359,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     // Determine file extension from MIME type
     let extension = 'webm';
     if (mimeType.includes('mp4')) {
-      extension = 'm4a'; // Better for audio-only MP4
+      extension = 'm4a';
     } else if (mimeType.includes('ogg')) {
       extension = 'ogg';
     } else if (mimeType.includes('wav')) {
@@ -331,12 +382,31 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('Backend error:', errorText);
-        throw new Error(`Server error: ${res.status}`);
+        console.error('❌ Backend error:', {
+          status: res.status,
+          statusText: res.statusText,
+          body: errorText
+        });
+        
+        // Handle specific errors
+        if (res.status === 404) {
+          alert(
+            `Question ${questionNumber} not found in the database.\n\n` +
+            `This might be a timing issue. Please:\n` +
+            `1. Refresh the page\n` +
+            `2. Start a new interview session\n\n` +
+            `Technical details: ${errorText}`
+          );
+        } else {
+          alert(`Failed to process answer (${res.status}): ${errorText}`);
+        }
+        
+        setIsProcessing(false);
+        return;
       }
 
       const data = await res.json();
-      console.log('Response data:', data);
+      console.log('✅ Answer processed:', data);
       
       setTranscript(data.transcript || 'No transcript received');
 
@@ -356,29 +426,36 @@ ${data.evaluation.improvements?.map((i: string) => `• ${i}`).join('\n') || 'No
         alert(evalMsg);
       }
 
+      // Wait a bit before moving to next question
       setTimeout(() => {
         if (questionNumber < 5) {
+          console.log('📝 Moving to next question...');
           fetchNextQuestion();
         } else {
+          console.log('🎉 All questions completed!');
           completeInterview();
         }
       }, 2000);
     } catch (err: any) {
-      console.error('Failed to submit answer:', err);
-      alert(`Failed to process answer: ${err.message}`);
+      console.error('❌ Failed to submit answer:', err);
+      alert(`Failed to process answer: ${err.message}\n\nPlease try again.`);
       setIsProcessing(false);
     }
   }
 
   async function completeInterview() {
     try {
+      console.log('🏁 Completing interview...');
+      
       await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      console.log('✅ Interview completed successfully');
       onComplete();
     } catch (err) {
-      console.error('Failed to complete interview:', err);
+      console.error('❌ Failed to complete interview:', err);
       alert('Interview data saved, but completion failed. Please check your results.');
       onComplete();
     }
@@ -400,7 +477,9 @@ ${data.evaluation.improvements?.map((i: string) => `• ${i}`).join('\n') || 'No
       )}
 
       <div style={{ marginBottom: 24, padding: 16, background: '#f3f4f6', borderRadius: 8 }}>
-        <h2 style={{ margin: 0, marginBottom: 12 }}>Question {questionNumber} of 5</h2>
+        <h2 style={{ margin: 0, marginBottom: 12 }}>
+          Question {questionNumber || '—'} of 5
+        </h2>
         <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0' }}>
           {currentQuestion || 'Loading question...'}
         </p>

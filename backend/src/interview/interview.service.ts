@@ -88,12 +88,26 @@ export class InterviewService {
     yearsOfExperience: number | string = 0,
   ): Promise<{ transcript: string; evaluation: any }> {
     // Transcribe audio
-    const transcript = await this.aiService.transcribeAudio(audioBuffer, `answer-${Date.now()}.webm`);
-
+    console.log('🔍 Processing answer:', { sessionId, questionNumber });
+    const transcript = await this.aiService.transcribeAudio(
+    audioBuffer, 
+    `answer-${Date.now()}.webm`
+    );
     // Get the question
     const qa = await this.qaRepo.findOne({ where: { sessionId, questionNumber } });
-    if (!qa) throw new NotFoundException('Question not found');
-
+    if (!qa) {
+    // 🆕 Better error message
+      const allQAs = await this.qaRepo.find({ where: { sessionId } });
+      console.error('❌ Question not found!', {
+        sessionId,
+        questionNumber,
+        existingQuestions: allQAs.map(q => q.questionNumber)
+      });
+      throw new NotFoundException(
+        `Question ${questionNumber} not found for session ${sessionId}. ` +
+        `Available questions: ${allQAs.map(q => q.questionNumber).join(', ')}`
+      );
+    }
     // Get session for role info
     const session = await this.getSession(sessionId);
 
