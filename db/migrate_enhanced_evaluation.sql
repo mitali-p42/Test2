@@ -34,6 +34,15 @@ AND qa.user_id IS NULL;
 ALTER TABLE interview_qa
   ADD CONSTRAINT fk_qa_user
   FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE;
+  ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10);
+
+-- Add check constraint
+ALTER TABLE interview_qa
+  ADD CONSTRAINT chk_difficulty 
+  CHECK (difficulty IN ('easy', 'medium', 'hard') OR difficulty IS NULL);
+
+CREATE INDEX IF NOT EXISTS idx_interview_qa_difficulty 
+  ON interview_qa(difficulty);
 
 -- 🆕 Create indexes for new columns
 CREATE INDEX IF NOT EXISTS idx_interview_qa_user_id ON interview_qa(user_id);
@@ -100,3 +109,17 @@ SELECT column_name, data_type
 FROM information_schema.columns 
 WHERE table_name = 'interview_qa' 
 ORDER BY ordinal_position;
+
+SELECT 
+  difficulty,
+  COUNT(*) as count,
+  ROUND(AVG(overall_score), 2) as avg_score
+FROM interview_qa
+WHERE difficulty IS NOT NULL
+GROUP BY difficulty
+ORDER BY 
+  CASE difficulty
+    WHEN 'easy' THEN 1
+    WHEN 'medium' THEN 2
+    WHEN 'hard' THEN 3
+  END;
