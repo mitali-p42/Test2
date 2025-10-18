@@ -16,6 +16,14 @@ export default function Interview() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'creating' | 'ready' | 'completed'>('creating');
 
+  // 🆕 Helper to capitalize
+  const capitalize = (str: string) => {
+    return str
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   useEffect(() => {
     if (!profile) {
       navigate('/');
@@ -89,9 +97,9 @@ export default function Interview() {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ maxWidth: 800, margin: '0 auto', marginBottom: 24 }}>
-        <h1> {profile.interviewType} Interview</h1>
+        <h1>{capitalize(profile.interviewType)} Interview</h1>
         <p style={{ color: '#666' }}>
-          <strong>Role:</strong> {profile.role} {/* | <strong>Type:</strong> {profile.interviewType} */}
+          <strong>Role:</strong> {capitalize(profile.role)}
         </p>
       </div>
 

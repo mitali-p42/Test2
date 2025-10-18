@@ -23,7 +23,16 @@ export default function Home() {
 
   const token = useMemo(() => localStorage.getItem('token') ?? '', [user?.email]);
 
-  // 👇 NEW: Check existing microphone permission on load
+  // 🆕 Helper to capitalize
+  const capitalize = (str: string | '—') => {
+    if (str === '—') return str;
+    return str
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  // Check existing microphone permission on load
   useEffect(() => {
     if (!navigator.permissions) {
       console.log('⚠️ Permissions API not available');
@@ -92,14 +101,12 @@ export default function Home() {
       console.log('   - Browser:', navigator.userAgent);
       console.log('   - HTTPS:', window.location.protocol === 'https:');
       
-      // Check if getUserMedia exists
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('getUserMedia not supported');
       }
 
       console.log('🎤 Calling getUserMedia...');
       
-      // Request permission - this MUST trigger the browser dialog
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
@@ -111,7 +118,6 @@ export default function Home() {
       console.log('✅ Permission granted! Stream:', stream);
       console.log('   - Audio tracks:', stream.getAudioTracks().length);
       
-      // Stop immediately - we just needed permission
       stream.getTracks().forEach(track => {
         console.log('⏹️ Stopping track:', track.label);
         track.stop();
@@ -120,7 +126,6 @@ export default function Home() {
       setPermissionState('granted');
       console.log('✅ Navigating to interview...');
 
-      // Navigate to interview
       navigate('/interview', { state: { profile } });
       
     } catch (err: any) {
@@ -168,7 +173,6 @@ export default function Home() {
     }
   }
 
-  // 👇 NEW: Show current permission status
   function getPermissionBadge() {
     if (permissionState === 'granted') {
       return <span style={{ color: '#059669', fontSize: 14 }}>✅ Microphone allowed</span>;
@@ -206,8 +210,8 @@ export default function Home() {
           <p>Loading...</p>
         ) : (
           <>
-            <p><strong>Role:</strong> {profile.role}</p>
-            <p><strong>Type:</strong> {profile.interviewType}</p>
+            <p><strong>Role:</strong> {capitalize(profile.role)}</p>
+            <p><strong>Type:</strong> {capitalize(profile.interviewType)}</p>
             <p><strong>Experience:</strong> {profile.yearsOfExperience} years</p>
           </>
         )}
