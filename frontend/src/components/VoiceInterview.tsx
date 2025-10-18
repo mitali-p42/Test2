@@ -57,6 +57,9 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const animationFrameRef = useRef<number | null>(null);
   const questionNumberRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
+  
+  // 🆕 Flag to track if interview was ended early
+  const interviewEndedEarlyRef = useRef(false);
 
   const token = localStorage.getItem('token');
   const API_BASE = import.meta.env.VITE_API_BASE;
@@ -108,7 +111,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     return undefined;
   }
 
-  // 🆕 Text-to-Speech helper
   async function speakText(text: string): Promise<void> {
     try {
       console.log('🔊 Generating speech:', text);
@@ -137,7 +139,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         };
         audio.onerror = () => {
           console.warn('⚠️ Speech playback failed');
-          resolve(); // Don't block on audio errors
+          resolve();
         };
         audio.play().catch(() => {
           console.warn('⚠️ Could not play speech');
@@ -146,11 +148,16 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       });
     } catch (err) {
       console.warn('⚠️ TTS error:', err);
-      // Don't block the interview on TTS failures
     }
   }
 
   async function fetchNextQuestion() {
+    // 🆕 Check if interview was ended early
+    if (interviewEndedEarlyRef.current) {
+      console.log('⏹️ Interview ended early, skipping next question');
+      return;
+    }
+
     setIsProcessing(true);
     setTranscript('');
     setCurrentQuestion('');
@@ -158,7 +165,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     try {
       console.log('🎯 Fetching question for session:', sessionId);
       
-      // 🆕 Voice prompt for moving to next question
       if (questionNumberRef.current > 0) {
         await speakText("Great answer! Let's move on to the next question.");
       }
@@ -191,12 +197,10 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       setQuestionNumber(data.questionNumber);
       questionNumberRef.current = data.questionNumber;
 
-      // 🆕 Welcome message for first question
       if (data.questionNumber === 1) {
         await speakText("Great! Let's begin with the first question.");
       }
 
-      // Play question audio and start typewriter
       try {
         const audioBuffer = Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0));
         const blob = new Blob([audioBuffer], { type: 'audio/mp3' });
@@ -407,6 +411,12 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   async function handleRecordingStop() {
     console.log('🛑 Processing answer...');
     
+    // 🆕 If interview ended early, skip processing
+    if (interviewEndedEarlyRef.current) {
+      console.log('⏹️ Interview ended early, skipping answer processing');
+      return;
+    }
+
     setIsProcessing(true);
     setTranscript('⏳ Transcribing...');
 
@@ -473,7 +483,13 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         console.log('📊 Evaluation:', data.evaluation);
       }
 
+      // 🆕 Check again before proceeding to next question
       setTimeout(() => {
+        if (interviewEndedEarlyRef.current) {
+          console.log('⏹️ Interview ended early, not proceeding to next question');
+          return;
+        }
+
         if (currentQuestionNumber < 5) {
           console.log('📝 Next question...');
           fetchNextQuestion();
@@ -491,7 +507,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
   async function completeInterview() {
     try {
-      // 🆕 Final voice message
       await speakText("Thank you for completing the interview! Your responses have been recorded. We'll review them and get back to you soon.");
       
       await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
@@ -508,10 +523,23 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   }
 
   async function handleEndInterview() {
+    console.log('🛑 Ending interview early...');
+    
+    // 🆕 Set flag FIRST to prevent any further processing
+    interviewEndedEarlyRef.current = true;
+    
     setShowEndConfirm(false);
     
+    // Stop recording if active
     if (isRecording) {
+      console.log('⏹️ Stopping active recording...');
       stopRecording();
+    }
+    
+    // Cancel any pending timeouts/animations
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     
     setIsProcessing(true);
@@ -628,7 +656,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         )}
       </div>
 
-      {questionNumber > 0 && !showEndConfirm && (
+      {questionNumber > 0 && !showEndConfirm && !interviewEndedEarlyRef.current && (
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <button
             onClick={() => setShowEndConfirm(true)}
