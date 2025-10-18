@@ -608,7 +608,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
               animation: 'pulse 1.5s infinite',
               position: 'relative',
             }}>
-              <div style={{
+              {/* <div style={{
                 position: 'absolute',
                 bottom: -30,
                 left: '50%',
@@ -618,7 +618,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
                 whiteSpace: 'nowrap',
               }}>
                 Level: {audioLevel.toFixed(1)}
-              </div>
+              </div> */}
             </div>
             <p style={{ fontSize: 16, color: '#666', marginBottom: 8 }}>
               🎤 Recording... (auto-stops after 6s silence)
