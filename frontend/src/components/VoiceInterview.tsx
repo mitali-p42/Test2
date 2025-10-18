@@ -11,6 +11,35 @@ type Props = {
   onComplete: () => void;
 };
 
+// Typewriter component
+function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    setDisplayedText('');
+    setCurrentIndex(0);
+  }, [text]);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setDisplayedText(prev => prev + text[currentIndex]);
+        setCurrentIndex(prev => prev + 1);
+      }, speed);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [currentIndex, text, speed]);
+
+  return (
+    <span>
+      {displayedText}
+      {currentIndex < text.length && <span className="cursor-blink">|</span>}
+    </span>
+  );
+}
+
 export default function VoiceInterview({ sessionId, profile, onComplete }: Props) {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionNumber, setQuestionNumber] = useState(0);
@@ -79,13 +108,60 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     return undefined;
   }
 
+  // 🆕 Text-to-Speech helper
+  async function speakText(text: string): Promise<void> {
+    try {
+      console.log('🔊 Generating speech:', text);
+      
+      const res = await fetch(`${API_BASE}/interview/tts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!res.ok) {
+        console.warn('⚠️ TTS failed, skipping voice prompt');
+        return;
+      }
+
+      const audioBlob = await res.blob();
+      const audio = new Audio(URL.createObjectURL(audioBlob));
+      
+      return new Promise((resolve, reject) => {
+        audio.onended = () => {
+          console.log('✅ Speech finished');
+          resolve();
+        };
+        audio.onerror = () => {
+          console.warn('⚠️ Speech playback failed');
+          resolve(); // Don't block on audio errors
+        };
+        audio.play().catch(() => {
+          console.warn('⚠️ Could not play speech');
+          resolve();
+        });
+      });
+    } catch (err) {
+      console.warn('⚠️ TTS error:', err);
+      // Don't block the interview on TTS failures
+    }
+  }
+
   async function fetchNextQuestion() {
     setIsProcessing(true);
     setTranscript('');
-    setCurrentQuestion(''); // Clear question for typewriter
+    setCurrentQuestion('');
     
     try {
       console.log('🎯 Fetching question for session:', sessionId);
+      
+      // 🆕 Voice prompt for moving to next question
+      if (questionNumberRef.current > 0) {
+        await speakText("Great answer! Let's move on to the next question.");
+      }
       
       const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/next-question`, {
         method: 'POST',
@@ -115,16 +191,19 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       setQuestionNumber(data.questionNumber);
       questionNumberRef.current = data.questionNumber;
 
-      // Play audio and sync typewriter
+      // 🆕 Welcome message for first question
+      if (data.questionNumber === 1) {
+        await speakText("Great! Let's begin with the first question.");
+      }
+
+      // Play question audio and start typewriter
       try {
         const audioBuffer = Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0));
         const blob = new Blob([audioBuffer], { type: 'audio/mp3' });
         const audio = new Audio(URL.createObjectURL(blob));
         
-        // Start typewriter immediately when audio starts playing
         audio.addEventListener('play', () => {
           console.log('🔊 Audio started, beginning typewriter effect');
-          // Small delay to ensure state updates properly
           setTimeout(() => setCurrentQuestion(data.question), 100);
         });
 
@@ -412,6 +491,9 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
   async function completeInterview() {
     try {
+      // 🆕 Final voice message
+      await speakText("Thank you for completing the interview! Your responses have been recorded. We'll review them and get back to you soon.");
+      
       await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
@@ -434,35 +516,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     
     setIsProcessing(true);
     await completeInterview();
-  }
-
-  // Typewriter component with adjustable speed
-  function TypewriterText({ text }: { text: string }) {
-    const [displayedText, setDisplayedText] = useState('');
-    const [currentIndex, setCurrentIndex] = useState(0);
-
-    useEffect(() => {
-      setDisplayedText('');
-      setCurrentIndex(0);
-    }, [text]);
-
-    useEffect(() => {
-      if (currentIndex < text.length) {
-        const timeout = setTimeout(() => {
-          setDisplayedText(prev => prev + text[currentIndex]);
-          setCurrentIndex(prev => prev + 1);
-        }, 50); // 50ms per character ≈ natural reading speed
-        
-        return () => clearTimeout(timeout);
-      }
-    }, [currentIndex, text]);
-
-    return (
-      <span>
-        {displayedText}
-        {currentIndex < text.length && <span className="cursor-blink">|</span>}
-      </span>
-    );
   }
 
   return (
@@ -488,7 +541,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         
         {currentQuestion ? (
           <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0', minHeight: 60 }}>
-            <TypewriterText key={currentQuestion} text={currentQuestion} />
+            <TypewriterText key={currentQuestion} text={currentQuestion} speed={50} />
           </p>
         ) : (
           <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0', minHeight: 60, color: '#9ca3af' }}>
@@ -575,7 +628,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         )}
       </div>
 
-      {/* End Interview Button - Always visible when interview has started */}
       {questionNumber > 0 && !showEndConfirm && (
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <button
@@ -597,7 +649,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         </div>
       )}
 
-      {/* Confirmation Dialog */}
       {showEndConfirm && (
         <div style={{
           position: 'fixed',

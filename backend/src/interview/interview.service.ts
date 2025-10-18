@@ -419,4 +419,9 @@ export class InterviewService {
       .slice(0, limit)
       .map(([item]) => item);
   }
+
+  async textToSpeech(text: string): Promise<Buffer> {
+    return this.aiService.textToSpeech(text);
+  }
+
 }

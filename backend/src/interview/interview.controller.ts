@@ -11,6 +11,7 @@ import {
   UploadedFile,
   Res,
   StreamableFile,
+  
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -49,6 +50,21 @@ export class InterviewController {
   @Get('sessions/:id')
   async getSession(@Param('id') sessionId: string) {
     return this.service.getSession(sessionId);
+  }
+
+  @Post('tts')
+  async textToSpeech(
+    @Body() body: { text: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const audioBuffer = await this.service.textToSpeech(body.text);
+    
+    res.set({
+      'Content-Type': 'audio/mp3',
+      'Content-Length': audioBuffer.length,
+    });
+    
+    return new StreamableFile(audioBuffer);
   }
 
   // 🆕 POST /interview/sessions/:id/next-question - Generate next question with audio
