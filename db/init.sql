@@ -1,4 +1,4 @@
--- db/init.sql
+-- db/init.sql (UPDATED with enhanced evaluation fields)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -22,30 +22,6 @@ CREATE TABLE IF NOT EXISTS interview_profiles (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_interview_profiles_user_id ON interview_profiles(user_id);
-CREATE INDEX IF NOT EXISTS idx_interview_profiles_email ON interview_profiles(email);
-
--- 👇 USE FIXED UUID INSTEAD OF gen_random_uuid()
-INSERT INTO users (id, email, password_hash)
-VALUES (
-  'a0000000-0000-0000-0000-000000000001',  -- Fixed UUID
-  'a@gmail.com', 
-  crypt('12345678', gen_salt('bf'))
-)
-ON CONFLICT (email) DO NOTHING;
-
--- Create matching interview profile
-INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type)
-VALUES (
-  'a0000000-0000-0000-0000-000000000001',  -- Same fixed UUID
-  'a@gmail.com', 
-  4.0, 
-  'product manager', 
-  'technical'
-)
-ON CONFLICT DO NOTHING;
-
 CREATE TABLE IF NOT EXISTS interview_sessions (
   session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
@@ -62,21 +38,131 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- 🆕 ENHANCED interview_qa table with detailed evaluation fields
 CREATE TABLE IF NOT EXISTS interview_qa (
   qa_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
+  user_id UUID NOT NULL, -- 🆕 Added for easier querying
   question_number INT NOT NULL,
   question TEXT NOT NULL,
+  question_category TEXT, -- 🆕 behavioral, technical, situational, etc.
   answer TEXT,
   transcript TEXT,
+  
+  -- 🆕 Detailed Evaluation Scores (0-100)
+  overall_score INT,
+  technical_accuracy INT,
+  communication_clarity INT,
+  depth_of_knowledge INT,
+  problem_solving_approach INT,
+  relevance_to_role INT,
+  
+  -- 🆕 Qualitative Assessment
+  feedback TEXT,
+  strengths TEXT[], -- Array of strength points
+  improvements TEXT[], -- Array of improvement areas
+  key_insights TEXT[], -- Array of key insights
+  
+  -- 🆕 Metadata
+  word_count INT,
+  answer_duration_seconds INT,
+  confidence VARCHAR(10), -- low, medium, high
+  
+  -- 🆕 Red Flags and Follow-ups
+  red_flags TEXT[],
+  follow_up_questions TEXT[],
+  
+  -- 🆕 Legacy JSONB field (kept for backward compatibility)
   evaluation JSONB,
-  duration_seconds INT,
+  
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  
   CONSTRAINT fk_qa_session
     FOREIGN KEY (session_id) REFERENCES interview_sessions (session_id) ON DELETE CASCADE,
+  CONSTRAINT fk_qa_user
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
   UNIQUE(session_id, question_number)
 );
 
+-- 🆕 Indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_interview_profiles_user_id ON interview_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_interview_profiles_email ON interview_profiles(email);
 CREATE INDEX IF NOT EXISTS idx_interview_sessions_user_id ON interview_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_sessions_status ON interview_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_session_id ON interview_qa(session_id);
+CREATE INDEX IF NOT EXISTS idx_interview_qa_user_id ON interview_qa(user_id); -- 🆕
+CREATE INDEX IF NOT EXISTS idx_interview_qa_overall_score ON interview_qa(overall_score); -- 🆕
+
+-- Seed data
+INSERT INTO users (id, email, password_hash)
+VALUES (
+  'a0000000-0000-0000-0000-000000000001',
+  'a@gmail.com', 
+  crypt('12345678', gen_salt('bf'))
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type)
+VALUES (
+  'a0000000-0000-0000-0000-000000000001',
+  'a@gmail.com', 
+  4.0, 
+  'product manager', 
+  'technical'
+)
+ON CONFLICT DO NOTHING;
+
+-- 🆕 Useful Views for Analytics
+
+-- View: User Interview Performance Summary
+CREATE OR REPLACE VIEW v_user_interview_summary AS
+SELECT 
+  u.id as user_id,
+  u.email,
+  COUNT(DISTINCT s.session_id) as total_interviews,
+  COUNT(qa.qa_id) as total_questions_answered,
+  ROUND(AVG(qa.overall_score), 2) as avg_overall_score,
+  ROUND(AVG(qa.technical_accuracy), 2) as avg_technical_score,
+  ROUND(AVG(qa.communication_clarity), 2) as avg_communication_score,
+  MAX(s.created_at) as last_interview_date
+FROM users u
+LEFT JOIN interview_sessions s ON u.id = s.user_id
+LEFT JOIN interview_qa qa ON s.session_id = qa.session_id
+GROUP BY u.id, u.email;
+
+-- View: Session Performance Details
+CREATE OR REPLACE VIEW v_session_performance AS
+SELECT 
+  s.session_id,
+  s.user_id,
+  u.email,
+  s.role,
+  s.interview_type,
+  s.status,
+  COUNT(qa.qa_id) as questions_answered,
+  ROUND(AVG(qa.overall_score), 2) as avg_score,
+  ROUND(AVG(qa.technical_accuracy), 2) as avg_technical,
+  ROUND(AVG(qa.communication_clarity), 2) as avg_communication,
+  STRING_AGG(DISTINCT qa.confidence, ', ') as confidence_levels,
+  s.created_at,
+  s.completed_at
+FROM interview_sessions s
+JOIN users u ON s.user_id = u.id
+LEFT JOIN interview_qa qa ON s.session_id = qa.session_id
+GROUP BY s.session_id, s.user_id, u.email, s.role, s.interview_type, s.status, s.created_at, s.completed_at;
+
+-- View: Question Category Performance
+CREATE OR REPLACE VIEW v_category_performance AS
+SELECT 
+  u.email,
+  qa.question_category,
+  COUNT(*) as times_asked,
+  ROUND(AVG(qa.overall_score), 2) as avg_score,
+  ROUND(AVG(qa.technical_accuracy), 2) as avg_technical,
+  ROUND(AVG(qa.communication_clarity), 2) as avg_communication
+FROM interview_qa qa
+JOIN users u ON qa.user_id = u.id
+WHERE qa.question_category IS NOT NULL
+GROUP BY u.email, qa.question_category
+ORDER BY u.email, avg_score DESC;
