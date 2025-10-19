@@ -51,6 +51,47 @@ export class InterviewController {
     return this.service.getSession(sessionId);
   }
 
+  @Post('transcribe-chunk')
+  @UseInterceptors(FileInterceptor('audio'))
+  async transcribeChunk(
+    @Body() body: { previousContext?: string },
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    try {
+      if (!file) {
+        throw new HttpException(
+          'No audio file uploaded',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      console.log('🎤 Transcribing chunk:', {
+        size: file.size,
+        hasContext: !!body.previousContext,
+      });
+
+      const transcript = await this.service.transcribeAudioChunk(
+        file.buffer,
+        body.previousContext || '',
+      );
+
+      return { 
+        text: transcript,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (err: any) {
+      console.error('❌ Chunk transcription error:', err.message);
+      throw new HttpException(
+        {
+          success: false,
+          error: 'Transcription failed',
+          message: err.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Post('tts')
   async textToSpeech(
     @Body() body: { text: string },

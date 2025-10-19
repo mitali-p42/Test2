@@ -1,4 +1,4 @@
-// backend/src/interview/interview.service.ts (UPDATED)
+// backend/src/interview/interview.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,6 +15,8 @@ export class InterviewService {
     private readonly qaRepo: Repository<InterviewQA>,
     private readonly aiService: AIService,
   ) {}
+
+  /** -------------------- Sessions -------------------- */
 
   async createSession(
     userId: string,
@@ -48,148 +50,52 @@ export class InterviewService {
     return session;
   }
 
-  // 🆕 Generate next question with difficulty tracking
-  // async generateNextQuestion(
-  //   sessionId: string,
-  //   yearsOfExperience: number | string = 0,
-  // ): Promise<{ 
-  //   question: string; 
-  //   questionNumber: number; 
-  //   audioBuffer: Buffer; 
-  //   category: string;
-  //   difficulty: 'easy' | 'medium' | 'hard';
-  // }> {
-  //   const session = await this.getSession(sessionId);
-  //   const nextNumber = session.currentQuestionIndex + 1;
+  /** -------------------- STT (chunk) -------------------- */
+  // NOTE: aiService.transcribeAudioChunk returns { text, confidence? }
+  // We log details and return text (string) to keep the signature simple for callers.
+  async transcribeAudioChunk(
+    audioBuffer: Buffer,
+    previousContext: string = '',
+  ): Promise<string> {
+    try {
+      console.log('🎙️ Transcribing audio chunk:', {
+        size: audioBuffer.length,
+        contextLength: previousContext.length,
+      });
 
-  //   if (nextNumber > session.totalQuestions) {
-  //     throw new Error('Interview completed');
-  //   }
+      const chunkResult = await this.aiService.transcribeAudioChunk(
+        audioBuffer,
+        `chunk-${Date.now()}.webm`,
+        previousContext,
+      ); // => { text, confidence? }
 
-  //   // 🆕 Get previously asked questions to determine difficulty distribution
-  //   const previousQAs = await this.qaRepo.find({
-  //     where: { sessionId },
-  //     order: { questionNumber: 'ASC' },
-  //     select: ['difficulty', 'questionNumber'],
-  //   });
+      const text = chunkResult?.text ?? '';
+      const confidence = chunkResult?.confidence;
 
-  //   const previousDifficulties = previousQAs
-  //     .map(qa => qa.difficulty)
-  //     .filter((d): d is 'easy' | 'medium' | 'hard' => d !== null);
+      console.log('✅ Chunk transcribed:', {
+        length: text.length,
+        preview: text.substring(0, 50),
+        confidence,
+      });
 
-  //   console.log(`📝 Generating Q${nextNumber} - Previous difficulties:`, previousDifficulties);
+      return text;
+    } catch (err: any) {
+      console.error('❌ Chunk transcription failed:', err);
+      return '';
+    }
+  }
 
-  //   // 🆕 Generate question with intelligent difficulty selection
-  //   const { question, difficulty, category } = await this.aiService.generateQuestion(
-  //     session.role,
-  //     session.interviewType,
-  //     yearsOfExperience,
-  //     nextNumber,
-  //     previousDifficulties,
-  //   );
-
-  //   console.log(`✅ Generated ${difficulty} question in category ${category}`);
-
-  //   // 🆕 Save question with difficulty
-  //   await this.saveQA(sessionId, session.userId, nextNumber, question, category, difficulty);
-
-  //   // Generate audio for question
-  //   const audioBuffer = await this.aiService.textToSpeech(question);
-
-  //   // Update current question index
-  //   session.currentQuestionIndex = nextNumber;
-  //   await this.sessionRepo.save(session);
-
-  //   return { question, questionNumber: nextNumber, audioBuffer, category, difficulty };
-  // }
-  // async generateNextQuestion(
-  //   sessionId: string,
-  //   yearsOfExperience: number | string = 0,
-  // ): Promise<{ question: string; questionNumber: number; audioBuffer: Buffer; category: string; difficulty: string }> {
-  //   const session = await this.getSession(sessionId);
-  //   const nextNumber = session.currentQuestionIndex + 1;
-
-  //   if (nextNumber > session.totalQuestions) {
-  //     throw new Error('Interview completed');
-  //   }
-
-    
-
-  //   // 🆕 Determine question category
-  //   const categories = ['behavioral', 'technical', 'situational', 'competency', 'problemSolving'];
-  //   const category = categories[(nextNumber - 1) % categories.length];
-
-  //   console.log(`📝 Generating question ${nextNumber} - Category: ${category}`);
-
-  //   // Generate diverse question using AI with difficulty
-  //   const { question, difficulty } = await this.aiService.generateQuestion(
-  //     session.role,
-  //     session.interviewType,
-  //     yearsOfExperience,
-  //     nextNumber,
-  //   );
-
-  //   console.log(`🎚️ Question difficulty: ${difficulty}`);
-
-  //   // Save question to DB with category and difficulty
-  //   await this.saveQA(sessionId, session.userId, nextNumber, question, category, difficulty);
-
-  //   // Generate audio for question
-  //   const audioBuffer = await this.aiService.textToSpeech(question);
-
-  //   // Update current question index
-  //   session.currentQuestionIndex = nextNumber;
-  //   await this.sessionRepo.save(session);
-
-  //   return { question, questionNumber: nextNumber, audioBuffer, category, difficulty };
-  // }
-
-  // 🆕 Generate next question with category tracking
-  // async generateNextQuestion(
-  //   sessionId: string,
-  //   yearsOfExperience: number | string = 0,
-  // ): Promise<{ question: string; questionNumber: number; audioBuffer: Buffer; category: string; difficulty: string }> {
-  //   const session = await this.getSession(sessionId);
-  //   const nextNumber = session.currentQuestionIndex + 1;
-
-  //   if (nextNumber > session.totalQuestions) {
-  //     throw new Error('Interview completed');
-  //   }
-
-    
-
-  //   // 🆕 Determine question category
-  //   const categories = ['behavioral', 'technical', 'situational', 'competency', 'problemSolving'];
-  //   const category = categories[(nextNumber - 1) % categories.length];
-
-  //   console.log(`📝 Generating question ${nextNumber} - Category: ${category}`);
-
-  //   // Generate diverse question using AI with difficulty
-  //   const { question, difficulty } = await this.aiService.generateQuestion(
-  //     session.role,
-  //     session.interviewType,
-  //     yearsOfExperience,
-  //     nextNumber,
-  //   );
-
-  //   console.log(`🎚️ Question difficulty: ${difficulty}`);
-
-  //   // Save question to DB with category and difficulty
-  //   await this.saveQA(sessionId, session.userId, nextNumber, question, category, difficulty);
-
-  //   // Generate audio for question
-  //   const audioBuffer = await this.aiService.textToSpeech(question);
-
-  //   // Update current question index
-  //   session.currentQuestionIndex = nextNumber;
-  //   await this.sessionRepo.save(session);
-
-  //   return { question, questionNumber: nextNumber, audioBuffer, category, difficulty };
-  // }
+  /** -------------------- Questions -------------------- */
   async generateNextQuestion(
     sessionId: string,
     yearsOfExperience: number | string = 0,
-  ): Promise<{ question: string; questionNumber: number; audioBuffer: Buffer; category: string; difficulty: string }> {
+  ): Promise<{
+    question: string;
+    questionNumber: number;
+    audioBuffer: Buffer;
+    category: string;
+    difficulty: string;
+  }> {
     const session = await this.getSession(sessionId);
     const nextNumber = session.currentQuestionIndex + 1;
 
@@ -197,13 +103,12 @@ export class InterviewService {
       throw new Error('Interview completed');
     }
 
-    // Determine question category
+    // Rotate simple categories for variety
     const categories = ['behavioral', 'technical', 'situational', 'competency', 'problemSolving'];
     const category = categories[(nextNumber - 1) % categories.length];
 
     console.log(`📝 Generating question ${nextNumber} - Category: ${category}`);
 
-    // Generate diverse question using AI with difficulty
     const { question, difficulty } = await this.aiService.generateQuestion(
       session.role,
       session.interviewType,
@@ -213,81 +118,46 @@ export class InterviewService {
 
     console.log(`🎚️ Question difficulty: ${difficulty}`);
 
-    // Save question to DB with category and difficulty
-    await this.saveQA(sessionId, session.userId, nextNumber, question, category, difficulty);
+    await this.saveQA(sessionId, session.userId, nextNumber, question, category, difficulty as any);
 
-    // Generate audio for question
     const audioBuffer = await this.aiService.textToSpeech(question);
 
-    // Update current question index
     session.currentQuestionIndex = nextNumber;
     await this.sessionRepo.save(session);
 
     return { question, questionNumber: nextNumber, audioBuffer, category, difficulty };
   }
-  // 🆕 Get hint - only allowed for HARD questions
-  // async getQuestionHint(sessionId: string, questionNumber: number): Promise<QuestionHint> {
-  //   console.log('💡 Hint request for question:', { sessionId, questionNumber });
 
-  //   // Get the question
-  //   const qa = await this.qaRepo.findOne({ where: { sessionId, questionNumber } });
-  //   if (!qa) {
-  //     throw new NotFoundException(`Question ${questionNumber} not found`);
-  //   }
-
-  //   // 🚨 CRITICAL: Check difficulty - only HARD questions get hints
-  //   if (!qa.difficulty || qa.difficulty !== 'hard') {
-  //     throw new BadRequestException(
-  //       `Hints are only available for hard difficulty questions. This question is ${qa.difficulty || 'unrated'}.`
-  //     );
-  //   }
-
-  //   console.log(`✅ Question ${questionNumber} is HARD - generating hint`);
-
-  //   // Get session for role/type context
-  //   const session = await this.getSession(sessionId);
-
-  //   // Generate hint using AI
-  //   const hint = await this.aiService.generateQuestionHint(
-  //     qa.question,
-  //     session.role,
-  //     session.interviewType,
-  //     qa.difficulty, // TypeScript knows this is 'hard' due to the check above
-  //   );
-
-  //   console.log('✅ Hint generated for hard question');
-  //   return hint;
-  // }
+  /** -------------------- Hints (only for hard) -------------------- */
   async getQuestionHint(sessionId: string, questionNumber: number): Promise<QuestionHint> {
     console.log('💡 Generating hint for question:', { sessionId, questionNumber });
 
-    // Get the question
     const qa = await this.qaRepo.findOne({ where: { sessionId, questionNumber } });
     if (!qa) {
       throw new NotFoundException(`Question ${questionNumber} not found`);
     }
-    
-    if (!qa.difficulty || qa.difficulty !== 'hard') {
-    throw new BadRequestException(
-      `Hints are only available for hard difficulty questions. This question is ${qa.difficulty || 'unrated'}.`
-    );
-  }
-  console.log(`✅ Question ${questionNumber} is HARD - generating hint`);
 
-    // Get session for role/type context
+    if (!qa.difficulty || qa.difficulty !== 'hard') {
+      throw new BadRequestException(
+        `Hints are only available for hard difficulty questions. This question is ${qa.difficulty || 'unrated'}.`,
+      );
+    }
+    console.log(`✅ Question ${questionNumber} is HARD - generating hint`);
+
     const session = await this.getSession(sessionId);
 
-    // Generate hint using AI with optional difficulty context
     const hint = await this.aiService.generateQuestionHint(
-    qa.question,
-    session.role,
-    session.interviewType,
-  );
+      qa.question,
+      session.role,
+      session.interviewType,
+    );
 
     console.log('✅ Hint generated for hard question');
     return hint;
   }
 
+  /** -------------------- Answer Processing -------------------- */
+  // NOTE: aiService.transcribeAudio returns string in your implementation.
   async processAnswer(
     sessionId: string,
     questionNumber: number,
@@ -297,10 +167,12 @@ export class InterviewService {
     console.log('🔍 Processing answer:', { sessionId, questionNumber });
 
     const startTime = Date.now();
-    const transcript = await this.aiService.transcribeAudio(
+
+    const transcript: string = await this.aiService.transcribeAudio(
       audioBuffer,
       `answer-${Date.now()}.webm`,
     );
+
     const answerDuration = Math.round((Date.now() - startTime) / 1000);
 
     const qa = await this.qaRepo.findOne({ where: { sessionId, questionNumber } });
@@ -325,7 +197,7 @@ export class InterviewService {
       confidence: evaluation.confidence,
     });
 
-    // Update QA record
+    // Persist evaluation details
     qa.answer = transcript;
     qa.transcript = transcript;
     qa.overallScore = evaluation.overallScore;
@@ -340,7 +212,7 @@ export class InterviewService {
     qa.keyInsights = evaluation.keyInsights;
     qa.wordCount = evaluation.wordCount;
     qa.answerDurationSeconds = answerDuration;
-    qa.confidence = evaluation.confidence;
+    qa.confidence = evaluation.confidence; // keep eval confidence; STT confidence lives in chunk path
     qa.redFlags = evaluation.redFlags;
     qa.followUpQuestions = evaluation.followUpQuestions;
     qa.evaluation = {
@@ -355,29 +227,7 @@ export class InterviewService {
     return { transcript, evaluation };
   }
 
-  // 🆕 Updated saveQA with difficulty parameter
-  // async saveQA(
-  //   sessionId: string,
-  //   userId: string,
-  //   questionNumber: number,
-  //   question: string,
-  //   category?: string,
-  //   difficulty?: 'easy' | 'medium' | 'hard',
-  //   answer?: string,
-  //   transcript?: string,
-  // ) {
-  //   const qa = this.qaRepo.create({
-  //     sessionId,
-  //     userId,
-  //     questionNumber,
-  //     question,
-  //     questionCategory: category || null,
-  //     difficulty: difficulty || null, // 🆕 Save difficulty
-  //     answer: answer || null,
-  //     transcript: transcript || null,
-  //   });
-  //   return this.qaRepo.save(qa);
-  // }
+  /** -------------------- Persistence helpers -------------------- */
   async saveQA(
     sessionId: string,
     userId: string,
@@ -394,12 +244,13 @@ export class InterviewService {
       questionNumber,
       question,
       questionCategory: category || null,
-      difficulty: difficulty || null, // 🆕 Added difficulty
+      difficulty: difficulty || null,
       answer: answer || null,
       transcript: transcript || null,
     });
     return this.qaRepo.save(qa);
   }
+
   async completeSession(sessionId: string) {
     const session = await this.getSession(sessionId);
     session.status = InterviewStatus.COMPLETED;
@@ -414,7 +265,7 @@ export class InterviewService {
     });
   }
 
-  // 🆕 Enhanced results with difficulty breakdown
+  /** -------------------- Results / Summary -------------------- */
   async getSessionResults(sessionId: string) {
     const session = await this.sessionRepo
       .createQueryBuilder('s')
@@ -450,41 +301,22 @@ export class InterviewService {
         ? qaList.reduce((sum, qa) => sum + (qa.overallScore || 0), 0) / answeredQuestions
         : 0;
 
-    // 🆕 Difficulty performance breakdown
-    // const difficultyPerformance: Record<string, any> = {};
-    // qaList.forEach((qa) => {
-    //   if (qa.difficulty && qa.overallScore !== null) {
-    //     if (!difficultyPerformance[qa.difficulty]) {
-    //       difficultyPerformance[qa.difficulty] = {
-    //         count: 0,
-    //         totalScore: 0,
-    //       };
-    //     }
-    //     difficultyPerformance[qa.difficulty].count++;
-    //     difficultyPerformance[qa.difficulty].totalScore += qa.overallScore;
-    //   }
-    // });
-
-    // const difficultyStats = Object.entries(difficultyPerformance).map(([difficulty, data]: [string, any]) => ({
-    //   difficulty,
-    //   averageScore: Math.round(data.totalScore / data.count),
-    //   questionsAsked: data.count,
-    // }));
-    const difficultyPerformance: Record<string, any> = {};
+    // Aggregate by difficulty
+    const difficultyPerformance: Record<
+      'easy' | 'medium' | 'hard' | string,
+      { count: number; totalScore: number }
+    > = {};
     qaList.forEach((qa) => {
-      if (qa.difficulty && qa.overallScore !== null) {
+      if (qa.difficulty && qa.overallScore !== null && qa.overallScore !== undefined) {
         if (!difficultyPerformance[qa.difficulty]) {
-          difficultyPerformance[qa.difficulty] = {
-            count: 0,
-            totalScore: 0,
-          };
+          difficultyPerformance[qa.difficulty] = { count: 0, totalScore: 0 };
         }
         difficultyPerformance[qa.difficulty].count++;
         difficultyPerformance[qa.difficulty].totalScore += qa.overallScore;
       }
     });
 
-    const difficultyStats = Object.entries(difficultyPerformance).map(([difficulty, data]: [string, any]) => ({
+    const difficultyStats = Object.entries(difficultyPerformance).map(([difficulty, data]) => ({
       difficulty,
       averageScore: Math.round(data.totalScore / data.count),
       questionsAsked: data.count,
@@ -506,7 +338,7 @@ export class InterviewService {
         questionId: qa.qaId,
         questionNumber: qa.questionNumber,
         questionCategory: qa.questionCategory,
-        difficulty: qa.difficulty, // 🆕 Add this line
+        difficulty: qa.difficulty,
         question: qa.question,
         answer: qa.answer,
         transcript: qa.transcript,
@@ -536,11 +368,12 @@ export class InterviewService {
           totalAnswered: answeredQuestions,
           totalQuestions,
         },
-        difficultyBreakdown: difficultyStats, // 🆕 Difficulty performance
+        difficultyBreakdown: difficultyStats,
       },
     };
   }
 
+  /** -------------------- Utilities -------------------- */
   private getGrade(score: number): string {
     if (score >= 90) return 'A (Excellent)';
     if (score >= 80) return 'B (Good)';

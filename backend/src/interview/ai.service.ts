@@ -24,6 +24,11 @@ export interface DetailedEvaluation {
   redFlags: string[];
   followUpQuestions: string[];
 }
+type GroqVerboseTranscription = {
+  text?: string;
+  segments?: Array<{ avg_logprob?: number }>;
+};
+
 export interface QuestionHint {
   hint: string;
   examples?: string[];
@@ -349,26 +354,73 @@ async transcribeAudioChunk(
       file: fs.createReadStream(tempPath),
       model: 'whisper-large-v3-turbo',
       language: 'en',
-      response_format: 'verbose_json',
+      response_format: 'verbose_json', // we will cast this shape locally
       temperature: 0.0,
-      prompt: previousContext, // Use previous context for better continuity
+      prompt: previousContext,
     });
 
     fs.unlinkSync(tempPath);
 
-    const result = typeof transcription === 'string' 
-      ? { text: transcription, confidence: undefined }
-      : { 
-          text: transcription.text || '', 
-          confidence: transcription.segments?.[0]?.avg_logprob 
-        };
+    // ✅ Cast the runtime shape to access segments safely
+    const t = (transcription as unknown) as GroqVerboseTranscription;
 
-    return result;
+    return {
+      text: typeof transcription === 'string' ? transcription : (t.text ?? ''),
+      confidence: t.segments?.[0]?.avg_logprob,
+    };
   } catch (error: any) {
     console.error('❌ Chunk transcription error:', error.message);
     return { text: '', confidence: 0 };
   }
 }
+
+// async transcribeAudioChunk(
+//   audioChunk: Buffer, 
+//   filename: string = 'chunk.webm',
+//   previousContext: string = ''
+// ): Promise<{ text: string; confidence?: number }> {
+//   try {
+//     const tempPath = path.join('/tmp', filename);
+//     fs.writeFileSync(tempPath, audioChunk);
+
+//     const transcription = await this.groq.audio.transcriptions.create({
+//       file: fs.createReadStream(tempPath),
+//       model: 'whisper-large-v3-turbo',
+//       language: 'en',
+//       response_format: 'verbose_json',
+//       temperature: 0.0,
+//       prompt: previousContext, // Use previous context for better continuity
+//     });
+
+//     fs.unlinkSync(tempPath);
+//     const t = transcription as unknown as GroqVerboseTranscription;
+
+//     const t = transcription as unknown as GroqVerboseTranscription;
+
+//     const result = {
+//       text: (typeof transcription === 'string' ? transcription : (t.text ?? '')),
+//       confidence: t.segments?.[0]?.avg_logprob, // may be undefined; that's fine
+//     };
+
+//     return result;
+//   } catch (error: any) {
+//     console.error('❌ Chunk transcription error:', error.message);
+//     return { text: '', confidence: 0 };
+//   }
+// }
+  //   const result = typeof transcription === 'string' 
+  //     ? { text: transcription, confidence: undefined }
+  //     : { 
+  //         text: transcription.text || '', 
+  //         confidence: transcription.segments?.[0]?.avg_logprob 
+  //       };
+
+  //   return result;
+  // } catch (error: any) {
+  //   console.error('❌ Chunk transcription error:', error.message);
+  //   return { text: '', confidence: 0 };
+  // }
+
 //   async generateQuestion(
 //     role: string,
 //     interviewType: string,
