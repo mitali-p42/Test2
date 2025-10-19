@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../users/user.entity';
 
 @Entity({ name: 'interview_profiles' })
 export class InterviewProfile {
@@ -44,6 +47,22 @@ export class InterviewProfile {
     nullable: true 
   })
   totalQuestions!: number;
+
+  // 🆕 Company Name
+  @Column({ name: 'company_name', type: 'text', nullable: true })
+  companyName!: string | null;
+
+  // 🆕 Recruiter who created this profile
+  @Column('uuid', { name: 'recruiter_id', nullable: true })
+  recruiterId!: string | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'recruiter_id' })
+  recruiter!: User | null;
+
+  // 🆕 Flag to indicate if created by recruiter
+  @Column({ name: 'created_by_recruiter', type: 'boolean', default: false })
+  createdByRecruiter!: boolean;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

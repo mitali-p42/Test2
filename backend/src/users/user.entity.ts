@@ -8,9 +8,16 @@ export class User {
   @Column({ name: 'email', type: 'text', unique: true })
   email!: string;
 
-  // Map camel property -> snake column
   @Column({ name: 'password_hash', type: 'text' })
   passwordHash!: string;
+
+  @Column({ 
+    name: 'user_type', 
+    type: 'varchar', 
+    length: 20, 
+    default: 'candidate' 
+  })
+  userType!: 'candidate' | 'recruiter';
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
