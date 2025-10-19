@@ -310,6 +310,65 @@ CRITICAL: Return ONLY valid JSON with this structure:
       throw new Error('Transcription failed');
     }
   }
+  async transcribeAudioStreaming(audioBuffer: Buffer, filename: string = 'audio.webm'): Promise<string> {
+  try {
+    const tempPath = path.join('/tmp', filename);
+    fs.writeFileSync(tempPath, audioBuffer);
+
+    console.log('🎙️ Starting streaming transcription:', { size: audioBuffer.length });
+
+    const transcription = await this.groq.audio.transcriptions.create({
+      file: fs.createReadStream(tempPath),
+      model: 'whisper-large-v3-turbo',
+      language: 'en',
+      response_format: 'verbose_json', // Get detailed timestamps
+      temperature: 0.0, // More deterministic for live transcription
+    });
+
+    fs.unlinkSync(tempPath);
+    
+    const text = typeof transcription === 'string' ? transcription : transcription.text || '';
+    console.log('✅ Streaming transcription complete:', { length: text.length });
+    
+    return text;
+  } catch (error: any) {
+    console.error('❌ Groq streaming STT error:', error.message);
+    throw new Error('Streaming transcription failed');
+  }
+}
+async transcribeAudioChunk(
+  audioChunk: Buffer, 
+  filename: string = 'chunk.webm',
+  previousContext: string = ''
+): Promise<{ text: string; confidence?: number }> {
+  try {
+    const tempPath = path.join('/tmp', filename);
+    fs.writeFileSync(tempPath, audioChunk);
+
+    const transcription = await this.groq.audio.transcriptions.create({
+      file: fs.createReadStream(tempPath),
+      model: 'whisper-large-v3-turbo',
+      language: 'en',
+      response_format: 'verbose_json',
+      temperature: 0.0,
+      prompt: previousContext, // Use previous context for better continuity
+    });
+
+    fs.unlinkSync(tempPath);
+
+    const result = typeof transcription === 'string' 
+      ? { text: transcription, confidence: undefined }
+      : { 
+          text: transcription.text || '', 
+          confidence: transcription.segments?.[0]?.avg_logprob 
+        };
+
+    return result;
+  } catch (error: any) {
+    console.error('❌ Chunk transcription error:', error.message);
+    return { text: '', confidence: 0 };
+  }
+}
 //   async generateQuestion(
 //     role: string,
 //     interviewType: string,
