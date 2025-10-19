@@ -457,11 +457,10 @@ async transcribeAudioChunk(
 
   /** -------------------- Utilities -------------------- */
   private getGrade(score: number): string {
-    if (score >= 90) return 'A (Excellent)';
-    if (score >= 80) return 'B (Good)';
-    if (score >= 70) return 'C (Satisfactory)';
-    if (score >= 60) return 'D (Needs Improvement)';
-    return 'F (Unsatisfactory)';
+    if (score >= 85) return 'Excellent';
+    if (score >= 70) return 'Good';
+    if (score >= 50) return 'Satisfactory';
+    return 'Needs Improvement';
   }
 
   async textToSpeech(text: string): Promise<Buffer> {

@@ -1,7 +1,7 @@
 // frontend/src/components/VoiceInterview.tsx (UPDATED with Live Transcript)
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-const navigate = useNavigate();
+
 
 type Props = {
   sessionId: string;
@@ -90,6 +90,7 @@ function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) 
 
 export default function VoiceInterview({ sessionId, profile, onComplete }: Props) {
   const [currentQuestion, setCurrentQuestion] = useState('');
+  const navigate = useNavigate();
   const [questionNumber, setQuestionNumber] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [liveTranscript, setLiveTranscript] = useState(''); // 🆕 Live transcript

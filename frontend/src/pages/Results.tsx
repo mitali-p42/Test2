@@ -105,20 +105,6 @@ export default function Results() {
     return '#ef4444';
   }
 
-  function getDifficultyColor(difficulty: string): string {
-    if (difficulty === 'easy') return '#d1fae5';
-    if (difficulty === 'medium') return '#fef3c7';
-    if (difficulty === 'hard') return '#fee2e2';
-    return '#f3f4f6';
-  }
-
-  function getDifficultyTextColor(difficulty: string): string {
-    if (difficulty === 'easy') return '#065f46';
-    if (difficulty === 'medium') return '#92400e';
-    if (difficulty === 'hard') return '#991b1b';
-    return '#6b7280';
-  }
-
   function capitalize(str: string): string {
     return str
       .split(' ')
@@ -260,37 +246,6 @@ export default function Results() {
             marginBottom: 24,
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           }}>
-            <h2 style={{ marginTop: 0 }}>Performance by Difficulty</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-              {summary.difficultyBreakdown.map((diff) => (
-                <div
-                  key={diff.difficulty}
-                  style={{
-                    padding: 16,
-                    background: getDifficultyColor(diff.difficulty),
-                    borderRadius: 12,
-                    border: `2px solid ${getDifficultyTextColor(diff.difficulty)}30`,
-                  }}
-                >
-                  <div style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: getDifficultyTextColor(diff.difficulty),
-                    marginBottom: 8,
-                    textTransform: 'uppercase',
-                  }}>
-                    {diff.difficulty === 'easy' ? '🟢 Easy' : 
-                     diff.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
-                  </div>
-                  <div style={{ fontSize: 28, fontWeight: 'bold', color: getDifficultyTextColor(diff.difficulty) }}>
-                    {diff.averageScore}
-                  </div>
-                  <div style={{ fontSize: 13, color: getDifficultyTextColor(diff.difficulty), opacity: 0.8 }}>
-                    {diff.questionsAsked} question{diff.questionsAsked !== 1 ? 's' : ''}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -319,7 +274,7 @@ export default function Results() {
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                     <h3 style={{ margin: 0 }}>Question {q.questionNumber}</h3>
-                    {q.difficulty && (
+                    {/* {q.difficulty && (
                       <span style={{
                         padding: '4px 12px',
                         borderRadius: 12,
@@ -331,7 +286,7 @@ export default function Results() {
                         {q.difficulty === 'easy' ? '🟢 Easy' : 
                          q.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
                       </span>
-                    )}
+                    )} */}
                     {q.questionCategory && (
                       <span style={{
                         padding: '4px 12px',
@@ -384,7 +339,6 @@ export default function Results() {
                     { label: 'Communication', value: q.scores.communication },
                     { label: 'Depth', value: q.scores.depth },
                     { label: 'Problem Solving', value: q.scores.problemSolving },
-                    { label: 'Role Relevance', value: q.scores.roleRelevance },
                   ].map((score) => (
                     score.value !== null && (
                       <div key={score.label}>
@@ -482,24 +436,7 @@ export default function Results() {
                 )}
               </div>
 
-              {/* Red Flags */}
-              {q.redFlags && q.redFlags.length > 0 && (
-                <div style={{
-                  marginTop: 16,
-                  padding: 12,
-                  background: '#fee2e2',
-                  borderRadius: 8,
-                }}>
-                  <h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14, color: '#991b1b' }}>
-                    🚩 Red Flags
-                  </h4>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
-                    {q.redFlags.map((flag, i) => (
-                      <li key={i} style={{ color: '#991b1b', marginBottom: 4 }}>{flag}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+            
             </div>
           ))}
         </div>
