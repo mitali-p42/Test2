@@ -25,6 +25,7 @@ function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) 
     setDisplayedText('');
     setCurrentIndex(0);
   }, [text]);
+  
 
   useEffect(() => {
     if (currentIndex < text.length) {
@@ -59,6 +60,13 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [hintError, setHintError] = useState<string | null>(null);
   const [hint, setHint] = useState<QuestionHint | null>(null);
 
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [showTabWarning, setShowTabWarning] = useState(false);
+  const [warningMessage, setWarningMessage] = useState('');
+  const [interviewTerminated, setInterviewTerminated] = useState(false);
+  const hasRecordedTabSwitchRef = useRef(false);
+
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -89,7 +97,339 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       shouldShowHint: currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing,
     });
   }, [currentDifficulty, questionNumber, isProcessing, isRecording]);
+  // useEffect(() => {
+  //   if (interviewTerminated || interviewEndedEarlyRef.current) {
+  //     console.log('⏹️ Interview ended, skipping tab detection');
+  //     return;
+  //   }
 
+  //   let isTabVisible = !document.hidden;
+  //   hasRecordedTabSwitchRef.current = false;
+
+  //   const handleVisibilityChange = async () => {
+  //     const wasVisible = isTabVisible;
+  //     isTabVisible = !document.hidden;
+
+  //     console.log('👁️ Visibility changed:', {
+  //       wasVisible,
+  //       isVisible: isTabVisible,
+  //       hasRecorded: hasRecordedTabSwitchRef.current,
+  //     });
+
+  //     // Only track when user LEAVES the tab (visible -> hidden)
+  //     if (wasVisible && !isTabVisible && !hasRecordedTabSwitchRef.current) {
+  //       console.log('🚨 User switched away from tab');
+  //       hasRecordedTabSwitchRef.current = true;
+  //       await recordTabSwitch();
+  //     }
+
+  //     // Reset flag when they come back
+  //     if (!wasVisible && isTabVisible) {
+  //       console.log('✅ User returned to tab');
+  //       hasRecordedTabSwitchRef.current = false;
+  //     }
+  //   };
+  //   document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  //   return () => {
+  //     document.removeEventListener('visibilitychange', handleVisibilityChange);
+  //   };
+  // }, [sessionId, token, API_BASE, interviewTerminated]);
+
+  // // 🆕 Record tab switch
+  // async function recordTabSwitch() {
+  //   try {
+  //     console.log('📊 Recording tab switch for session:', sessionId);
+
+  //     const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/tab-switch`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //     });
+
+  //     if (!res.ok) {
+  //       console.error('❌ Failed to record tab switch:', res.status);
+  //       return;
+  //     }
+
+  //     const data = await res.json();
+      
+  //     console.log('✅ Tab switch recorded:', data);
+
+  //     setTabSwitchCount(data.tabSwitches);
+
+  //     if (data.shouldTerminate) {
+  //       console.log('🛑 Interview terminated due to tab switches');
+  //       setWarningMessage('❌ Interview terminated: You switched tabs too many times.');
+  //       setInterviewTerminated(true);
+  //       setShowTabWarning(true);
+        
+  //       // Force stop recording
+  //       if (isRecording) {
+  //         stopRecording();
+  //       }
+
+  //       // Auto-complete after showing message
+  //       setTimeout(() => {
+  //         handleTabSwitchTermination();
+  //       }, 5000);
+  //     } else {
+  //       // Show warning
+  //       setWarningMessage(data.message);
+  //       setShowTabWarning(true);
+
+  //       // Auto-hide warning after 8 seconds
+  //       setTimeout(() => {
+  //         setShowTabWarning(false);
+  //       }, 8000);
+  //     }
+  //   } catch (err: any) {
+  //     console.error('❌ Tab switch recording error:', err);
+  //   }
+  // }
+
+  // 🆕 Handle interview termination due to tab switches
+  // frontend/src/components/VoiceInterview.tsx
+
+// 🆕 Enhanced Tab Switch Detection with multiple fallbacks
+useEffect(() => {
+  if (interviewTerminated || interviewEndedEarlyRef.current) {
+    console.log('⏹️ Interview ended, skipping tab detection');
+    return;
+  }
+
+  console.log('🔍 Setting up tab switch detection...');
+  
+  let isTabVisible = !document.hidden;
+  let hasFocus = document.hasFocus();
+  let lastSwitchTime = 0;
+  const DEBOUNCE_MS = 1000; // Prevent duplicate detections within 1 second
+
+  // Helper to check if we should record (debounce)
+  const shouldRecord = () => {
+    const now = Date.now();
+    if (now - lastSwitchTime < DEBOUNCE_MS) {
+      console.log('⏭️ Skipping duplicate detection (debounced)');
+      return false;
+    }
+    lastSwitchTime = now;
+    return true;
+  };
+
+  // Method 1: visibilitychange API (most reliable)
+  const handleVisibilityChange = () => {
+    const wasVisible = isTabVisible;
+    isTabVisible = !document.hidden;
+
+    console.log('👁️ Visibility changed:', {
+      wasVisible,
+      isNowVisible: isTabVisible,
+      documentHidden: document.hidden,
+    });
+
+    // User LEAVES the tab (visible -> hidden)
+    if (wasVisible && !isTabVisible) {
+      console.log('🚨 Tab switch detected via visibilitychange');
+      if (shouldRecord()) {
+        recordTabSwitch();
+      }
+    }
+  };
+
+  // Method 2: blur event (when window loses focus)
+  const handleBlur = () => {
+    console.log('🔄 Window blur event');
+    
+    // Only count as tab switch if document becomes hidden
+    setTimeout(() => {
+      if (document.hidden && shouldRecord()) {
+        console.log('🚨 Tab switch detected via blur');
+        recordTabSwitch();
+      }
+    }, 100);
+  };
+
+  // Method 3: focus tracking
+  const handleFocus = () => {
+    const hadFocus = hasFocus;
+    hasFocus = true;
+    
+    console.log('✅ Window focus event', { hadFocus });
+  };
+
+  const handleFocusOut = () => {
+    hasFocus = false;
+    console.log('👋 Focus out event');
+  };
+
+  // Method 4: Page Visibility API with debugging
+  const handlePageShow = (e: PageTransitionEvent) => {
+    console.log('📄 Page show event', { persisted: e.persisted });
+  };
+
+  const handlePageHide = (e: PageTransitionEvent) => {
+    console.log('📄 Page hide event', { persisted: e.persisted });
+    if (shouldRecord()) {
+      console.log('🚨 Tab switch detected via pagehide');
+      recordTabSwitch();
+    }
+  };
+
+  // Attach all listeners
+  console.log('📌 Attaching event listeners...');
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('blur', handleBlur);
+  window.addEventListener('focus', handleFocus);
+  window.addEventListener('focusout', handleFocusOut);
+  window.addEventListener('pageshow', handlePageShow);
+  window.addEventListener('pagehide', handlePageHide);
+
+  // Log initial state
+  console.log('📊 Initial state:', {
+    documentHidden: document.hidden,
+    hasFocus: document.hasFocus(),
+    visibilityState: document.visibilityState,
+  });
+
+  // Periodic check (fallback for browsers that don't fire events reliably)
+  const checkInterval = setInterval(() => {
+    const currentlyVisible = !document.hidden;
+    const currentlyHasFocus = document.hasFocus();
+
+    // If state changed without event firing, record it
+    if (isTabVisible && !currentlyVisible) {
+      console.log('🚨 Tab switch detected via polling');
+      isTabVisible = currentlyVisible;
+      if (shouldRecord()) {
+        recordTabSwitch();
+      }
+    }
+
+    isTabVisible = currentlyVisible;
+    hasFocus = currentlyHasFocus;
+  }, 500); // Check every 500ms
+
+  return () => {
+    console.log('🧹 Cleaning up tab detection listeners');
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('blur', handleBlur);
+    window.removeEventListener('focus', handleFocus);
+    window.removeEventListener('focusout', handleFocusOut);
+    window.removeEventListener('pageshow', handlePageShow);
+    window.removeEventListener('pagehide', handlePageHide);
+    clearInterval(checkInterval);
+  };
+}, [sessionId, token, API_BASE, interviewTerminated]);
+
+// 🆕 Record tab switch with better error handling
+async function recordTabSwitch() {
+  if (interviewTerminated || interviewEndedEarlyRef.current) {
+    console.log('⏹️ Interview already ended, skipping tab switch recording');
+    return;
+  }
+
+  try {
+    console.log('📊 Recording tab switch for session:', sessionId);
+    console.log('📊 Current state:', {
+      tabSwitchCount,
+      isRecording,
+      isProcessing,
+      questionNumber,
+    });
+
+    const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/tab-switch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('❌ Failed to record tab switch:', res.status, errorText);
+      return;
+    }
+
+    const data = await res.json();
+    
+    console.log('✅ Tab switch recorded:', {
+      count: data.tabSwitches,
+      shouldTerminate: data.shouldTerminate,
+      message: data.message,
+    });
+
+    setTabSwitchCount(data.tabSwitches);
+
+    if (data.shouldTerminate) {
+      console.log('🛑 Interview terminated due to tab switches');
+      setWarningMessage('❌ Interview terminated: You switched tabs 3 times.');
+      setInterviewTerminated(true);
+      setShowTabWarning(true);
+      
+      // Force stop recording if active
+      if (isRecording) {
+        console.log('⏹️ Stopping recording due to termination');
+        stopRecording();
+      }
+
+      // Auto-complete after showing message
+      setTimeout(() => {
+        handleTabSwitchTermination();
+      }, 5000);
+    } else {
+      // Show warning
+      setWarningMessage(data.message);
+      setShowTabWarning(true);
+
+      console.log(`⚠️ Warning ${data.tabSwitches}/3 shown to user`);
+
+      // Auto-hide warning after 8 seconds
+      setTimeout(() => {
+        setShowTabWarning(false);
+      }, 8000);
+    }
+  } catch (err: any) {
+    console.error('❌ Tab switch recording error:', err);
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+    });
+  }
+}
+  async function handleTabSwitchTermination() {
+    console.log('🛑 Terminating interview due to tab switches...');
+    
+    interviewEndedEarlyRef.current = true;
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    if (transcriptionIntervalRef.current) {
+      clearInterval(transcriptionIntervalRef.current);
+      transcriptionIntervalRef.current = null;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      // Mark session as completed
+      await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      console.log('✅ Interview terminated');
+      onComplete();
+    } catch (err) {
+      console.error('❌ Termination failed:', err);
+      onComplete();
+    }
+  }
   useEffect(() => {
     console.log('🔍 Browser capabilities:');
     console.log('  - User Agent:', navigator.userAgent);
@@ -711,6 +1051,89 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           }}
         >
           ⚠️ <strong>Safari:</strong> For best results, use Chrome/Firefox/Edge.
+        </div>
+      )}
+
+      {showTabWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 2000,
+            maxWidth: 500,
+            width: '90%',
+            padding: 20,
+            background: interviewTerminated ? '#fee2e2' : '#fef3c7',
+            border: `2px solid ${interviewTerminated ? '#ef4444' : '#fbbf24'}`,
+            borderRadius: 12,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+            animation: 'slideDown 0.3s ease-out',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>{interviewTerminated ? '🛑' : '⚠️'}</span>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ 
+                margin: '0 0 8px 0', 
+                color: interviewTerminated ? '#991b1b' : '#92400e',
+                fontSize: 16,
+              }}>
+                {interviewTerminated ? 'Interview Terminated' : `Warning ${tabSwitchCount}/2`}
+              </h3>
+              <p style={{ 
+                margin: '0 0 8px 0', 
+                color: interviewTerminated ? '#991b1b' : '#92400e',
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}>
+                {warningMessage}
+              </p>
+              {!interviewTerminated && (
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: 13,
+                  color: '#6b7280',
+                }}>
+                  Remaining warnings: {Math.max(0, 2 - tabSwitchCount)}
+                </p>
+              )}
+            </div>
+            {!interviewTerminated && (
+              <button
+                onClick={() => setShowTabWarning(false)}
+                style={{
+                  background: 'none',
+                  border: 0,
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  padding: 4,
+                  color: '#6b7280',
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {/* 🆕 Tab Switch Counter (always visible) */}
+      {questionNumber > 0 && !interviewTerminated && (
+        <div style={{ 
+          marginBottom: 16, 
+          padding: 8, 
+          background: tabSwitchCount > 0 ? '#fef3c7' : '#f3f4f6',
+          borderRadius: 8,
+          fontSize: 13,
+          textAlign: 'center',
+          color: tabSwitchCount > 0 ? '#92400e' : '#6b7280',
+        }}>
+          {tabSwitchCount === 0 ? (
+            '✅ No tab switches detected'
+          ) : (
+            `⚠️ Tab switches: ${tabSwitchCount}/3 (${Math.max(0, 2 - tabSwitchCount)} warnings remaining)`
+          )}
         </div>
       )}
 

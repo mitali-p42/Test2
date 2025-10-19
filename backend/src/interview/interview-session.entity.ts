@@ -1,3 +1,4 @@
+// backend/src/interview/interview-session.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -42,6 +43,16 @@ export class InterviewSession {
 
   @Column({ name: 'total_questions', type: 'int', default: 5 })
   totalQuestions!: number;
+
+  // 🆕 Tab switch tracking
+  @Column({ name: 'tab_switches', type: 'int', default: 0 })
+  tabSwitches!: number;
+
+  @Column({ name: 'tab_switch_timestamps', type: 'timestamptz', array: true, default: [] })
+  tabSwitchTimestamps!: Date[];
+
+  @Column({ name: 'terminated_for_tab_switches', type: 'boolean', default: false })
+  terminatedForTabSwitches!: boolean;
 
   @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
   startedAt!: Date | null;

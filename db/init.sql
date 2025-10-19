@@ -1,4 +1,4 @@
--- db/init.sql (UPDATED with enhanced evaluation fields)
+-- db/init.sql (UPDATED with tab switch tracking)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
   status VARCHAR(20) DEFAULT 'pending',
   current_question_index INT DEFAULT 0,
   total_questions INT DEFAULT 5,
+  
+  -- 🆕 Tab switch tracking columns
+  tab_switches INT DEFAULT 0,
+  tab_switch_timestamps TIMESTAMPTZ[] DEFAULT '{}',
+  terminated_for_tab_switches BOOLEAN DEFAULT false,
+  
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -38,19 +44,19 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- 🆕 ENHANCED interview_qa table with detailed evaluation fields
+-- Enhanced interview_qa table with detailed evaluation fields
 CREATE TABLE IF NOT EXISTS interview_qa (
   qa_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
-  user_id UUID NOT NULL, -- 🆕 Added for easier querying
+  user_id UUID NOT NULL,
   question_number INT NOT NULL,
   question TEXT NOT NULL,
-  question_category TEXT, -- 🆕 behavioral, technical, situational, etc.
+  question_category TEXT,
   difficulty VARCHAR(10),
   answer TEXT,
   transcript TEXT,
   
-  -- 🆕 Detailed Evaluation Scores (0-100)
+  -- Detailed Evaluation Scores (0-100)
   overall_score INT,
   technical_accuracy INT,
   communication_clarity INT,
@@ -58,22 +64,22 @@ CREATE TABLE IF NOT EXISTS interview_qa (
   problem_solving_approach INT,
   relevance_to_role INT,
   
-  -- 🆕 Qualitative Assessment
+  -- Qualitative Assessment
   feedback TEXT,
-  strengths TEXT[], -- Array of strength points
-  improvements TEXT[], -- Array of improvement areas
-  key_insights TEXT[], -- Array of key insights
+  strengths TEXT[],
+  improvements TEXT[],
+  key_insights TEXT[],
   
-  -- 🆕 Metadata
+  -- Metadata
   word_count INT,
   answer_duration_seconds INT,
-  confidence VARCHAR(10), -- low, medium, high
+  confidence VARCHAR(10),
   
-  -- 🆕 Red Flags and Follow-ups
+  -- Red Flags and Follow-ups
   red_flags TEXT[],
   follow_up_questions TEXT[],
   
-  -- 🆕 Legacy JSONB field (kept for backward compatibility)
+  -- Legacy JSONB field (kept for backward compatibility)
   evaluation JSONB,
   
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -82,20 +88,22 @@ CREATE TABLE IF NOT EXISTS interview_qa (
     FOREIGN KEY (session_id) REFERENCES interview_sessions (session_id) ON DELETE CASCADE,
   CONSTRAINT fk_qa_user
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-  UNIQUE(session_id, question_number),  -- ✅ Added comma here
-CONSTRAINT chk_difficulty 
-CHECK (difficulty IN ('easy', 'medium', 'hard') OR difficulty IS NULL)
+  UNIQUE(session_id, question_number),
+  CONSTRAINT chk_difficulty 
+    CHECK (difficulty IN ('easy', 'medium', 'hard') OR difficulty IS NULL)
 );
 
--- 🆕 Indexes for better query performance
+-- Indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_interview_profiles_user_id ON interview_profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_profiles_email ON interview_profiles(email);
 CREATE INDEX IF NOT EXISTS idx_interview_sessions_user_id ON interview_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_sessions_status ON interview_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_interview_sessions_tab_switches ON interview_sessions(tab_switches) WHERE tab_switches > 0;
 CREATE INDEX IF NOT EXISTS idx_interview_qa_session_id ON interview_qa(session_id);
-CREATE INDEX IF NOT EXISTS idx_interview_qa_user_id ON interview_qa(user_id); -- 🆕
-CREATE INDEX IF NOT EXISTS idx_interview_qa_overall_score ON interview_qa(overall_score); -- 🆕
+CREATE INDEX IF NOT EXISTS idx_interview_qa_user_id ON interview_qa(user_id);
+CREATE INDEX IF NOT EXISTS idx_interview_qa_overall_score ON interview_qa(overall_score);
+CREATE INDEX IF NOT EXISTS idx_interview_qa_difficulty ON interview_qa(difficulty);
 
 -- Seed data
 INSERT INTO users (id, email, password_hash)
@@ -116,7 +124,7 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
--- 🆕 Useful Views for Analytics
+-- Useful Views for Analytics
 
 -- View: User Interview Performance Summary
 CREATE OR REPLACE VIEW v_user_interview_summary AS
@@ -169,3 +177,29 @@ JOIN users u ON qa.user_id = u.id
 WHERE qa.question_category IS NOT NULL
 GROUP BY u.email, qa.question_category
 ORDER BY u.email, avg_score DESC;
+
+-- 🆕 View: Interview Violations (Tab Switches)
+CREATE OR REPLACE VIEW v_interview_violations AS
+SELECT 
+  s.session_id,
+  s.user_id,
+  u.email,
+  s.role,
+  s.interview_type,
+  s.status,
+  s.tab_switches,
+  s.tab_switch_timestamps,
+  s.terminated_for_tab_switches,
+  s.current_question_index,
+  s.total_questions,
+  s.created_at,
+  s.completed_at,
+  CASE 
+    WHEN s.terminated_for_tab_switches THEN 'Terminated for violations'
+    WHEN s.tab_switches > 0 THEN 'Has violations'
+    ELSE 'Clean'
+  END as violation_status
+FROM interview_sessions s
+JOIN users u ON s.user_id = u.id
+WHERE s.tab_switches > 0 OR s.terminated_for_tab_switches = true
+ORDER BY s.tab_switches DESC, s.created_at DESC;

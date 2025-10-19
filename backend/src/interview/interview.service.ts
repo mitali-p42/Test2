@@ -49,42 +49,122 @@ export class InterviewService {
     if (!session) throw new NotFoundException('Session not found');
     return session;
   }
+  
+
+   async recordTabSwitch(sessionId: string): Promise<{
+    tabSwitches: number;
+    shouldTerminate: boolean;
+  }> {
+    const session = await this.sessionRepo.findOne({ where: { sessionId } });
+    
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.status === InterviewStatus.COMPLETED || session.status === InterviewStatus.CANCELLED) {
+      console.log('⚠️ Tab switch recorded for already completed/cancelled session');
+      return { tabSwitches: session.tabSwitches, shouldTerminate: false };
+    }
+
+    // Increment tab switches
+    session.tabSwitches += 1;
+    session.tabSwitchTimestamps = [...session.tabSwitchTimestamps, new Date()];
+
+    const shouldTerminate = session.tabSwitches >= 3;
+
+    if (shouldTerminate) {
+      console.log('🛑 Terminating interview due to tab switches:', {
+        sessionId,
+        count: session.tabSwitches,
+      });
+
+      session.status = InterviewStatus.CANCELLED;
+      session.terminatedForTabSwitches = true;
+      session.completedAt = new Date();
+    }
+
+    await this.sessionRepo.save(session);
+
+    console.log('📊 Tab switch recorded:', {
+      sessionId,
+      count: session.tabSwitches,
+      shouldTerminate,
+    });
+
+    return {
+      tabSwitches: session.tabSwitches,
+      shouldTerminate,
+    };
+  }
+
+
+
 
   /** -------------------- STT (chunk) -------------------- */
   // NOTE: aiService.transcribeAudioChunk returns { text, confidence? }
   // We log details and return text (string) to keep the signature simple for callers.
-  async transcribeAudioChunk(
-    audioBuffer: Buffer,
-    previousContext: string = '',
-  ): Promise<string> {
-    try {
-      console.log('🎙️ Transcribing audio chunk:', {
-        size: audioBuffer.length,
-        contextLength: previousContext.length,
-      });
+  // async transcribeAudioChunk(
+  //   audioBuffer: Buffer,
+  //   previousContext: string = '',
+  // ): Promise<string> {
+  //   try {
+  //     console.log('🎙️ Transcribing audio chunk:', {
+  //       size: audioBuffer.length,
+  //       contextLength: previousContext.length,
+  //     });
 
-      const chunkResult = await this.aiService.transcribeAudioChunk(
-        audioBuffer,
-        `chunk-${Date.now()}.webm`,
-        previousContext,
-      ); // => { text, confidence? }
+  //     const chunkResult = await this.aiService.transcribeAudioChunk(
+  //       audioBuffer,
+  //       `chunk-${Date.now()}.webm`,
+  //       previousContext,
+  //     ); // => { text, confidence? }
 
-      const text = chunkResult?.text ?? '';
-      const confidence = chunkResult?.confidence;
+  //     const text = chunkResult?.text ?? '';
+  //     const confidence = chunkResult?.confidence;
 
-      console.log('✅ Chunk transcribed:', {
-        length: text.length,
-        preview: text.substring(0, 50),
-        confidence,
-      });
+  //     console.log('✅ Chunk transcribed:', {
+  //       length: text.length,
+  //       preview: text.substring(0, 50),
+  //       confidence,
+  //     });
 
-      return text;
-    } catch (err: any) {
-      console.error('❌ Chunk transcription failed:', err);
-      return '';
-    }
+  //     return text;
+  //   } catch (err: any) {
+  //     console.error('❌ Chunk transcription failed:', err);
+  //     return '';
+  //   }
+  // }
+async transcribeAudioChunk(
+  audioBuffer: Buffer,
+  previousContext: string = '',
+): Promise<string> {
+  try {
+    console.log('🎙️ Transcribing audio chunk:', {
+      size: audioBuffer.length,
+      contextLength: previousContext.length,
+    });
+
+    const chunkResult = await this.aiService.transcribeAudioChunk(
+      audioBuffer,
+      `chunk-${Date.now()}.webm`,
+      previousContext,
+    ); // => { text, confidence? }
+
+    const text = chunkResult?.text ?? '';
+    const confidence = chunkResult?.confidence;
+
+    console.log('✅ Chunk transcribed:', {
+      length: text.length,  // ✅ Fixed: use text.length
+      preview: text.substring(0, 50),  // ✅ Fixed: use text.substring
+      confidence,
+    });
+
+    return text;  // ✅ Fixed: return text (string), not the full object
+  } catch (err: any) {
+    console.error('❌ Chunk transcription failed:', err);
+    return '';
   }
-
+}
   /** -------------------- Questions -------------------- */
   async generateNextQuestion(
     sessionId: string,
