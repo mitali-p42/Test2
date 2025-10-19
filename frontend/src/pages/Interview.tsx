@@ -107,7 +107,7 @@ export default function Interview() {
         <VoiceInterview
           sessionId={sessionId}
           profile={profile}
-          onComplete={handleComplete}
+           onComplete={() => {}} 
         />
       )}
     </div>

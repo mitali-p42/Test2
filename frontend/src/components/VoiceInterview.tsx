@@ -948,7 +948,7 @@ async function recordTabSwitch() {
     }
   }
 
-  aasync function completeInterview() {
+  async function completeInterview() {
   try {
     await speakText(
       "Thank you for completing the interview! Your responses have been recorded. Let's review your results."
