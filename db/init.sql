@@ -78,6 +78,9 @@ CREATE TABLE IF NOT EXISTS interview_qa (
   CONSTRAINT chk_difficulty 
     CHECK (difficulty IN ('easy', 'medium', 'hard') OR difficulty IS NULL)
 );
+ALTER TABLE interview_profiles 
+  ADD COLUMN IF NOT EXISTS total_questions INT DEFAULT 5 
+  CHECK (total_questions >= 1 AND total_questions <= 20);
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -92,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_interview_qa_session_id ON interview_qa(session_i
 CREATE INDEX IF NOT EXISTS idx_interview_qa_user_id ON interview_qa(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_overall_score ON interview_qa(overall_score);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_difficulty ON interview_qa(difficulty);
-
+CREATE INDEX IF NOT EXISTS idx_interview_profiles_total_questions ON interview_profiles(total_questions);
 -- Seed data with skills
 INSERT INTO users (id, email, password_hash)
 VALUES (
@@ -122,4 +125,9 @@ VALUES (
     'metrics and KPIs'
   ]
 )
+
+UPDATE interview_profiles 
+SET total_questions = 5 
+WHERE total_questions IS NULL;
+
 ON CONFLICT DO NOTHING;
