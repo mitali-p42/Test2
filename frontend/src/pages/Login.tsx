@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import LoginForm from '../components/LoginForm';
-import './style/Loginstyle.css'; 
+import './style/Loginstyle.css';
 
 type UserType = 'candidate' | 'recruiter';
 
@@ -21,6 +21,7 @@ export default function Login() {
   async function onSubmit(email: string, password: string) {
     setError(null);
     setLoading(true);
+    
     try {
       if (mode === 'login') {
         await login(email, password);
@@ -29,17 +30,17 @@ export default function Login() {
       }
     } catch (err: any) {
       let msg = 'Something went wrong';
-      try {
-        if (err?.json) {
+      
+      // Handle error message extraction
+      if (err?.message) {
+        msg = err.message;
+      } else if (err?.json) {
+        try {
           const data = await err.json();
           msg = Array.isArray(data?.message) ? data.message[0] : (data?.message || msg);
-        } else if (err?.response?.json) {
-          const data = await err.response.json();
-          msg = Array.isArray(data?.message) ? data.message[0] : (data?.message || msg);
-        } else if (typeof err?.message === 'string') {
-          msg = err.message;
-        }
-      } catch {}
+        } catch {}
+      }
+      
       setError(msg);
     } finally {
       setLoading(false);
@@ -49,11 +50,19 @@ export default function Login() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1 className="auth-title">{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h1>
+        <h1 className="auth-title">
+          {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+        </h1>
         
         {mode === 'register' && (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: 8, 
+              fontWeight: 600, 
+              fontSize: 14,
+              color: '#374151',
+            }}>
               I am a:
             </label>
             <div style={{ display: 'flex', gap: 12 }}>
@@ -77,6 +86,7 @@ export default function Login() {
                 />
                 <span style={{ fontWeight: 500 }}>👤 Candidate</span>
               </label>
+              
               <label style={{ 
                 flex: 1, 
                 padding: 12, 
@@ -107,18 +117,31 @@ export default function Login() {
           error={error ?? undefined}
           loading={loading}
         />
+        
         <p className="auth-switch">
           {mode === 'login' ? (
             <>
               New here?{' '}
-              <button className="link-btn" onClick={() => setMode('register')}>
+              <button 
+                className="link-btn" 
+                onClick={() => {
+                  setMode('register');
+                  setError(null);
+                }}
+              >
                 Create an account
               </button>
             </>
           ) : (
             <>
               Already have an account?{' '}
-              <button className="link-btn" onClick={() => setMode('login')}>
+              <button 
+                className="link-btn" 
+                onClick={() => {
+                  setMode('login');
+                  setError(null);
+                }}
+              >
                 Login
               </button>
             </>

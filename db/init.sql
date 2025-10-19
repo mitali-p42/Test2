@@ -1,12 +1,16 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Users table
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
+  user_type VARCHAR(20) DEFAULT 'candidate' CHECK (user_type IN ('candidate', 'recruiter')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT users_id_email_unique UNIQUE (id, email)
 );
+
+-- Interview profiles table
 CREATE TABLE IF NOT EXISTS interview_profiles (
   interview_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
@@ -15,12 +19,19 @@ CREATE TABLE IF NOT EXISTS interview_profiles (
   interview_type TEXT,
   years_of_experience NUMERIC(3,1),
   skills TEXT[] DEFAULT '{}', 
+  total_questions INT DEFAULT 5 CHECK (total_questions >= 1 AND total_questions <= 20),
+  company_name TEXT,
+  recruiter_id UUID,
+  created_by_recruiter BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT fk_interview_user
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_recruiter 
+    FOREIGN KEY (recruiter_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- Interview sessions table
 CREATE TABLE IF NOT EXISTS interview_sessions (
   session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
@@ -40,29 +51,8 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
   CONSTRAINT fk_session_user
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
-ALTER TABLE users 
-  ADD COLUMN IF NOT EXISTS user_type VARCHAR(20) DEFAULT 'candidate' 
-  CHECK (user_type IN ('candidate', 'recruiter'));
 
--- Add company_name and recruiter_id to interview_profiles
-ALTER TABLE interview_profiles 
-  ADD COLUMN IF NOT EXISTS company_name TEXT,
-  ADD COLUMN IF NOT EXISTS recruiter_id UUID,
-  ADD COLUMN IF NOT EXISTS created_by_recruiter BOOLEAN DEFAULT false,
-  ADD CONSTRAINT fk_recruiter 
-    FOREIGN KEY (recruiter_id) REFERENCES users(id) ON DELETE SET NULL;
-
--- Create index for faster queries
-CREATE INDEX IF NOT EXISTS idx_interview_profiles_recruiter_id 
-  ON interview_profiles(recruiter_id);
-
-CREATE INDEX IF NOT EXISTS idx_users_user_type 
-  ON users(user_type);
-
--- Update existing users to be candidates by default
-UPDATE users SET user_type = 'candidate' WHERE user_type IS NULL;
-
-
+-- Interview Q&A table
 CREATE TABLE IF NOT EXISTS interview_qa (
   qa_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
@@ -70,7 +60,7 @@ CREATE TABLE IF NOT EXISTS interview_qa (
   question_number INT NOT NULL,
   question TEXT NOT NULL,
   question_category TEXT,
-  difficulty VARCHAR(10),
+  difficulty VARCHAR(10) CHECK (difficulty IN ('easy', 'medium', 'hard') OR difficulty IS NULL),
   answer TEXT,
   transcript TEXT,
   overall_score INT,
@@ -88,59 +78,69 @@ CREATE TABLE IF NOT EXISTS interview_qa (
   confidence VARCHAR(10),
   red_flags TEXT[],
   follow_up_questions TEXT[],
+  tested_skills TEXT[] DEFAULT '{}',
   evaluation JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT fk_qa_session
     FOREIGN KEY (session_id) REFERENCES interview_sessions (session_id) ON DELETE CASCADE,
   CONSTRAINT fk_qa_user
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-  UNIQUE(session_id, question_number),
-  CONSTRAINT chk_difficulty 
-    CHECK (difficulty IN ('easy', 'medium', 'hard') OR difficulty IS NULL)
+  UNIQUE(session_id, question_number)
 );
-ALTER TABLE interview_profiles 
-  ADD COLUMN IF NOT EXISTS total_questions INT DEFAULT 5 
-  CHECK (total_questions >= 1 AND total_questions <= 20);
-ALTER TABLE interview_qa 
-  ADD COLUMN IF NOT EXISTS tested_skills TEXT[] DEFAULT '{}';
 
--- Create index for skills queries
-CREATE INDEX IF NOT EXISTS idx_interview_qa_tested_skills 
-  ON interview_qa USING GIN(tested_skills);
-
--- Indexes
+-- Indexes for users table
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
+
+-- Indexes for interview_profiles table
 CREATE INDEX IF NOT EXISTS idx_interview_profiles_user_id ON interview_profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_profiles_email ON interview_profiles(email);
-CREATE INDEX IF NOT EXISTS idx_interview_profiles_skills ON interview_profiles USING GIN(skills); -- 🆕
+CREATE INDEX IF NOT EXISTS idx_interview_profiles_skills ON interview_profiles USING GIN(skills);
+CREATE INDEX IF NOT EXISTS idx_interview_profiles_recruiter_id ON interview_profiles(recruiter_id);
+CREATE INDEX IF NOT EXISTS idx_interview_profiles_total_questions ON interview_profiles(total_questions);
+
+-- Indexes for interview_sessions table
 CREATE INDEX IF NOT EXISTS idx_interview_sessions_user_id ON interview_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_sessions_status ON interview_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_interview_sessions_tab_switches ON interview_sessions(tab_switches) WHERE tab_switches > 0;
-CREATE INDEX IF NOT EXISTS idx_interview_sessions_skills ON interview_sessions USING GIN(skills); -- 🆕
+CREATE INDEX IF NOT EXISTS idx_interview_sessions_skills ON interview_sessions USING GIN(skills);
+
+-- Indexes for interview_qa table
 CREATE INDEX IF NOT EXISTS idx_interview_qa_session_id ON interview_qa(session_id);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_user_id ON interview_qa(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_overall_score ON interview_qa(overall_score);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_difficulty ON interview_qa(difficulty);
-CREATE INDEX IF NOT EXISTS idx_interview_profiles_total_questions ON interview_profiles(total_questions);
+CREATE INDEX IF NOT EXISTS idx_interview_qa_tested_skills ON interview_qa USING GIN(tested_skills);
 
--- Seed example data with skills
-INSERT INTO users (id, email, password_hash)
+-- Seed example data
+INSERT INTO users (id, email, password_hash, user_type)
 VALUES (
   'a0000000-0000-0000-0000-000000000001',
   'a@gmail.com', 
-  crypt('12345678', gen_salt('bf'))
+  crypt('12345678', gen_salt('bf')),
+  'candidate'
 )
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO users (id, email, password_hash)
+INSERT INTO users (id, email, password_hash, user_type)
 VALUES (
   'a0000000-0000-0000-0000-000000000002',
   'b@gmail.com', 
-  crypt('12345678', gen_salt('bf'))
+  crypt('12345678', gen_salt('bf')),
+  'candidate'
 )
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type, skills,total_questions)
+INSERT INTO users (id, email, password_hash, user_type)
+VALUES (
+  '00000000-0000-0000-0000-000000000003',
+  'recruiter@company.com', 
+  crypt('recruiter123', gen_salt('bf')),
+  'recruiter'
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type, skills, total_questions)
 VALUES (
   'a0000000-0000-0000-0000-000000000001',
   'a@gmail.com', 
@@ -179,13 +179,3 @@ VALUES (
   5
 )
 ON CONFLICT DO NOTHING;
-
--- Seed a test recruiter
-INSERT INTO users (id, email, password_hash, user_type)
-VALUES (
-  'r0000000-0000-0000-0000-000000000001',
-  'recruiter@company.com', 
-  crypt('recruiter123', gen_salt('bf')),
-  'recruiter'
-)
-ON CONFLICT (email) DO NOTHING;
