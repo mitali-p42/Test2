@@ -46,8 +46,11 @@ export class AuthService {
         skills: [],
         totalQuestions: 5,
         companyName: null,
+        hasProfile: false,
       };
     }
+
+    const hasProfile = !!(user.role || user.interviewType);
 
     return {
       id: user.id,
@@ -60,11 +63,12 @@ export class AuthService {
       skills: user.skills ?? [], 
       totalQuestions: user.totalQuestions ?? 5,
       companyName: user.companyName ?? null,
+      hasProfile,
     };
   }
 
   private signToken(sub: string, email: string, userType: 'candidate' | 'recruiter') {
     const access_token = this.jwt.sign({ sub, email, userType });
-    return { access_token };
+    return { access_token, userType };
   }
 }
