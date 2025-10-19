@@ -267,7 +267,7 @@ export default function Results() {
             marginBottom: 24,
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           }}>
-            <h2 style={{ marginTop: 0, marginBottom: 24 }}>Performance by Difficulty</h2>
+            {/* <h2 style={{ marginTop: 0, marginBottom: 24 }}>Performance by Difficulty</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
               {summary.difficultyBreakdown.map((diff) => (
                 <div
@@ -290,7 +290,7 @@ export default function Results() {
                   </div>
                 </div>
               ))}
-            </div>
+            </div> */}
           </div>
         )}
 

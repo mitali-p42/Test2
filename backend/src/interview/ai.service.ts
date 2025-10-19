@@ -306,7 +306,7 @@ async transcribeAudioChunk(
     yearsOfExperience: number | string,
     questionNumber: number,
     skills: string[] = [], 
-  ): Promise<{ question: string; difficulty: 'easy' | 'medium' | 'hard' }> {
+  ): Promise<{ question: string; difficulty: 'easy' | 'medium' | 'hard' ; testedSkills?: string[];}> {
     try {
       const category = this.getQuestionCategory(questionNumber);
       const starter = this.getRandomStarter(category);
@@ -391,6 +391,7 @@ Generate ONE clear, focused question (no numbering or preamble):`;
       return {
         question,
         difficulty: verifiedDifficulty,
+        testedSkills: this.extractTestedSkills(question, skills),
       };
     } catch (error: any) {
       console.error('Groq LLM error:', error.message);
@@ -398,9 +399,44 @@ Generate ONE clear, focused question (no numbering or preamble):`;
       return {
         question: this.getFallbackQuestion('technical', role, questionNumber),
         difficulty: fallbackDifficulty,
+        testedSkills: [], 
       };
     }
   }
+  // Add this new method after generateQuestion
+  private extractTestedSkills(question: string, availableSkills: string[]): string[] {
+  if (!availableSkills || availableSkills.length === 0) {
+    return [];
+  }
+
+  const questionLower = question.toLowerCase();
+  const testedSkills: string[] = [];
+
+  for (const skill of availableSkills) {
+    // Check if the skill or its variations appear in the question
+    const skillLower = skill.toLowerCase();
+    const skillWords = skillLower.split(' ');
+    
+    // Check for exact match or partial match of multi-word skills
+    if (questionLower.includes(skillLower) || 
+        skillWords.some(word => word.length > 3 && questionLower.includes(word))) {
+      testedSkills.push(skill);
+    }
+  }
+
+  // If no skills detected but we have skills available, randomly select 1-2
+  if (testedSkills.length === 0 && availableSkills.length > 0) {
+    const numToSelect = Math.min(Math.floor(Math.random() * 2) + 1, availableSkills.length);
+    for (let i = 0; i < numToSelect; i++) {
+      const randomIndex = Math.floor(Math.random() * availableSkills.length);
+      if (!testedSkills.includes(availableSkills[randomIndex])) {
+        testedSkills.push(availableSkills[randomIndex]);
+      }
+    }
+  }
+
+  return testedSkills;
+}
 
   // 🆕 Add this new method right after generateQuestion
   private async verifyQuestionDifficulty(
