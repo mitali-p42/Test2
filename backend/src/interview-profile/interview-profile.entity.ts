@@ -12,6 +12,9 @@ export class InterviewProfile {
   @PrimaryGeneratedColumn('uuid', { name: 'interview_id' })
   interviewId!: string;
 
+  @Column({ name: 'skills', type: 'text', array: true, default: [] })
+  skills!: string[];
+
   @Column('uuid', { name: 'user_id' })
   userId!: string;
 

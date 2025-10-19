@@ -31,13 +31,14 @@ export class InterviewController {
   @Post('sessions')
   async createSession(
     @Req() req: AuthedRequest,
-    @Body() body: { role: string; interviewType: string; yearsOfExperience?: number },
+    @Body() body: { role: string; interviewType: string; yearsOfExperience?: number ;skills?: string[];},
   ) {
     return this.service.createSession(
       req.user.id,
       body.role,
       body.interviewType,
       body.yearsOfExperience,
+      body.skills,
     );
   }
 
@@ -46,10 +47,10 @@ export class InterviewController {
     return this.service.startSession(sessionId);
   }
 
-  @Get('sessions/:id')
-  async getSession(@Param('id') sessionId: string) {
-    return this.service.getSession(sessionId);
-  }
+  // @Get('sessions/:id')
+  // async getSession(@Param('id') sessionId: string) {
+  //   return this.service.getSession(sessionId);
+  // }
 
   @Post('transcribe-chunk')
   @UseInterceptors(FileInterceptor('audio'))
@@ -91,7 +92,44 @@ export class InterviewController {
       );
     }
   }
+  @Post('sessions/:id/tab-switch')
+  async recordTabSwitch(@Param('id') sessionId: string) {
+    try {
+      const result = await this.service.recordTabSwitch(sessionId);
+      
+      console.log('📊 Tab switch recorded:', {
+        sessionId,
+        count: result.tabSwitches,
+        shouldTerminate: result.shouldTerminate,
+      });
 
+      return {
+        tabSwitches: result.tabSwitches,
+        shouldTerminate: result.shouldTerminate,
+        remainingWarnings: Math.max(0, 2 - result.tabSwitches),
+        message: result.shouldTerminate 
+          ? 'Interview terminated due to repeated tab switches'
+          : result.tabSwitches === 1
+          ? 'First warning: Please stay on this tab'
+          : 'Final warning: One more tab switch will terminate the interview',
+      };
+    } catch (err: any) {
+      console.error('❌ Tab switch recording failed:', err.message);
+      throw new HttpException(
+        {
+          success: false,
+          error: 'Failed to record tab switch',
+          message: err.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('sessions/:id')
+  async getSession(@Param('id') sessionId: string) {
+    return this.service.getSession(sessionId);
+  }
   @Post('tts')
   async textToSpeech(
     @Body() body: { text: string },

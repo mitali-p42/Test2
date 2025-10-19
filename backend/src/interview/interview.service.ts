@@ -23,11 +23,13 @@ export class InterviewService {
     role: string,
     interviewType: string,
     yearsOfExperience?: number,
+    skills?: string[], 
   ) {
     const session = this.sessionRepo.create({
       userId,
       role,
       interviewType,
+      skills: skills || [],
       status: InterviewStatus.PENDING,
       totalQuestions: 5,
       currentQuestionIndex: 0,

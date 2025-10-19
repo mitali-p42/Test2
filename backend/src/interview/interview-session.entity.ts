@@ -59,10 +59,14 @@ export class InterviewSession {
 
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt!: Date | null;
+  @Column({ name: 'skills', type: 'text', array: true, default: [] })
+  skills!: string[];
+
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;
+  
 }

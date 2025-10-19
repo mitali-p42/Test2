@@ -421,106 +421,12 @@ async transcribeAudioChunk(
   //   return { text: '', confidence: 0 };
   // }
 
-//   async generateQuestion(
-//     role: string,
-//     interviewType: string,
-//     yearsOfExperience: number | string,
-//     questionNumber: number,
-//   ): Promise<{ question: string; difficulty: 'easy' | 'medium' | 'hard' }> {
-//     try {
-//       const category = this.getQuestionCategory(questionNumber);
-//       const starter = this.getRandomStarter(category);
-      
-//       // 🆕 Determine difficulty based on experience level
-//       const experience = Number(yearsOfExperience) || 0;
-//       let targetDifficulty: 'easy' | 'medium' | 'hard';
-      
-//       if (experience < 2) {
-//         targetDifficulty = questionNumber <= 2 ? 'easy' : 'medium';
-//       } else if (experience < 5) {
-//         targetDifficulty = questionNumber <= 1 ? 'easy' : questionNumber <= 3 ? 'medium' : 'hard';
-//       } else {
-//         targetDifficulty = questionNumber <= 1 ? 'medium' : 'hard';
-//       }
-
-//       const prompt = `You are conducting a professional ${interviewType} interview for a ${role} position.
-
-// CANDIDATE PROFILE:
-// - Experience Level: ${yearsOfExperience} years
-// - Target Role: ${role}
-// - Interview Type: ${interviewType}
-
-// QUESTION ${questionNumber}/5 REQUIREMENTS:
-// 📋 Category: ${category.toUpperCase()}
-// 🎯 Focus Area: ${this.getCategoryGuidance(category, role, interviewType)}
-// 💡 Starter Template: "${starter}"
-// 🎚️ Difficulty: ${targetDifficulty.toUpperCase()} (for ${yearsOfExperience} years experience)
-
-// DIFFICULTY GUIDELINES:
-// - EASY: Basic concepts, straightforward scenarios, common situations
-// - MEDIUM: Moderate complexity, requires some critical thinking, real-world application
-// - HARD: Complex scenarios, requires deep expertise, strategic thinking, trade-off analysis
-
-// INSTRUCTIONS:
-// 1. Create a unique, thought-provoking question at ${targetDifficulty} difficulty level
-// 2. Tailor complexity to ${yearsOfExperience} years of experience
-// 3. Make it ${category}-focused and role-specific
-// 4. Keep it conversational (40-60 words)
-// 5. Avoid generic questions - be specific to ${role}
-// 6. Ensure the question tests real competency at the ${targetDifficulty} level
-
-// Generate ONE clear, focused question (no numbering or preamble):`;
-
-//       const completion = await this.groq.chat.completions.create({
-//         model: 'llama-3.3-70b-versatile',
-//         messages: [
-//           { 
-//             role: 'system', 
-//             content: `You are an expert interviewer specializing in ${category} assessment. Generate diverse, insightful questions at appropriate difficulty levels that reveal true candidate capabilities.` 
-//           },
-//           { role: 'user', content: prompt },
-//         ],
-//         temperature: 0.85,
-//         top_p: 0.9,
-//         max_tokens: 180,
-//       });
-
-//       const question = completion.choices[0]?.message?.content?.trim();
-      
-//       if (!question) {
-//         return {
-//           question: this.getFallbackQuestion(category, role, questionNumber),
-//           difficulty: targetDifficulty,
-//         };
-//       }
-      
-//       // 🆕 Verify difficulty of generated question
-//       const verifiedDifficulty = await this.verifyQuestionDifficulty(
-//         question,
-//         role,
-//         yearsOfExperience,
-//         targetDifficulty,
-//       );
-      
-//       return {
-//         question,
-//         difficulty: verifiedDifficulty,
-//       };
-//     } catch (error: any) {
-//       console.error('Groq LLM error:', error.message);
-//       const fallbackDifficulty = Number(yearsOfExperience) < 2 ? 'easy' : 'medium';
-//       return {
-//         question: this.getFallbackQuestion('technical', role, questionNumber),
-//         difficulty: fallbackDifficulty,
-//       };
-//     }
-//   }
-  // This goes right after the generateQuestion method and BEFORE getCategoryGuidance
   async generateQuestion(
     role: string,
     interviewType: string,
     yearsOfExperience: number | string,
     questionNumber: number,
+    skills: string[] = [], 
   ): Promise<{ question: string; difficulty: 'easy' | 'medium' | 'hard' }> {
     try {
       const category = this.getQuestionCategory(questionNumber);
@@ -537,19 +443,24 @@ async transcribeAudioChunk(
       } else {
         targetDifficulty = questionNumber <= 1 ? 'medium' : 'hard';
       }
+      const skillsContext = skills.length > 0
+      ? `\n\nCANDIDATE SKILLS: ${skills.join(', ')}\n- Focus questions on testing these specific skills\n- Ask about practical application of these skills\n- Assess depth of expertise in these areas`
+      : '';
+
 
       const prompt = `You are conducting a professional ${interviewType} interview for a ${role} position.
 
 CANDIDATE PROFILE:
 - Experience Level: ${yearsOfExperience} years
 - Target Role: ${role}
-- Interview Type: ${interviewType}
+- Interview Type: ${interviewType}${skillsContext}
 
 QUESTION ${questionNumber}/5 REQUIREMENTS:
 📋 Category: ${category.toUpperCase()}
 🎯 Focus Area: ${this.getCategoryGuidance(category, role, interviewType)}
 💡 Starter Template: "${starter}"
 🎚️ Difficulty: ${targetDifficulty.toUpperCase()} (for ${yearsOfExperience} years experience)
+${skills.length > 0 ? `🎯 Must test skills: ${skills.slice(0, 3).join(', ')}` : ''}
 
 DIFFICULTY GUIDELINES:
 - EASY: Basic concepts, straightforward scenarios, common situations
@@ -560,9 +471,10 @@ INSTRUCTIONS:
 1. Create a unique, thought-provoking question at ${targetDifficulty} difficulty level
 2. Tailor complexity to ${yearsOfExperience} years of experience
 3. Make it ${category}-focused and role-specific
-4. Keep it conversational (40-60 words)
-5. Avoid generic questions - be specific to ${role}
-6. Ensure the question tests real competency at the ${targetDifficulty} level
+${skills.length > 0 ? `4. Test one or more of these skills: ${skills.join(', ')}` : '4. Focus on core competencies for the role'}
+5. Keep it conversational (40-60 words)
+6. Avoid generic questions - be specific to ${role}
+7. Ensure the question tests real competency at the ${targetDifficulty} level
 
 Generate ONE clear, focused question (no numbering or preamble):`;
 
