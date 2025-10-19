@@ -73,6 +73,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  useEffect(() => {
+    console.log('🎚️ Difficulty state changed:', {
+      currentDifficulty,
+      questionNumber,
+      isProcessing,
+      isRecording,
+      shouldShowHint: currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing
+    });
+  }, [currentDifficulty, questionNumber, isProcessing, isRecording]);
 
   useEffect(() => {
     console.log('🔍 Browser capabilities:');
@@ -171,6 +180,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     setCurrentQuestion('');
     setHint(null);
     setHintError(null); // 🆕 Reset hint error
+    setCurrentDifficulty(null);
     
     try {
       console.log('🎯 Fetching question for session:', sessionId);
@@ -197,8 +207,10 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       console.log('✅ Question loaded:', {
         number: data.questionNumber,
         difficulty: data.difficulty,
+        difficultyType: typeof data.difficulty,
         length: data.question?.length,
-        hasAudio: !!data.audioBase64
+        hasAudio: !!data.audioBase64,
+        fullData: data
       });
 
       if (!data.questionNumber) {
@@ -208,10 +220,18 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       setQuestionNumber(data.questionNumber);
       questionNumberRef.current = data.questionNumber;
       setCurrentDifficulty(data.difficulty || null);
+      const difficulty = data.difficulty as 'easy' | 'medium' | 'hard' | null;
+      console.log('🎚️ Setting difficulty:', difficulty);
+      setCurrentDifficulty(difficulty);
+
+      setTimeout(() => {
+        console.log('🎚️ Difficulty after state update:', difficulty);
+      }, 100);
 
       if (data.questionNumber === 1) {
         await speakText("Great! Let's begin with the first question.");
       }
+
 
       try {
         const audioBuffer = Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0));
@@ -590,6 +610,14 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     setIsProcessing(true);
     await completeInterview();
   }
+  console.log('🎨 Rendering with:', {
+    currentDifficulty,
+    questionNumber,
+    isProcessing,
+    isRecording,
+    showHintSection: currentDifficulty === 'hard' && questionNumber > 0
+  });
+
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
@@ -602,6 +630,22 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           borderRadius: 8,
         }}>
           ⚠️ <strong>Safari:</strong> For best results, use Chrome/Firefox/Edge.
+        </div>
+      )}
+
+      {questionNumber > 0 && (
+        <div style={{ 
+          marginBottom: 16, 
+          padding: 8, 
+          background: '#f0f0f0', 
+          borderRadius: 4,
+          fontSize: 12,
+          fontFamily: 'monospace'
+        }}>
+          DEBUG: difficulty={currentDifficulty || 'null'} | 
+          qNum={questionNumber} | 
+          processing={isProcessing ? 'yes' : 'no'} | 
+          recording={isRecording ? 'yes' : 'no'}
         </div>
       )}
 
@@ -742,6 +786,39 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         )}
       </div>
     )}
+
+    {questionNumber > 0 && (
+        <div style={{ 
+          marginBottom: 24, 
+          padding: 16, 
+          background: currentDifficulty === 'hard' ? '#fef3c7' : '#f3f4f6',
+          border: `1px solid ${currentDifficulty === 'hard' ? '#fbbf24' : '#e5e7eb'}`,
+          borderRadius: 8,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>
+              {currentDifficulty === 'hard' 
+                ? '🎯 Hard Question - Hint Available' 
+                : `Hint ${currentDifficulty === 'hard' ? 'available' : 'not available'} (${currentDifficulty || 'no difficulty'})`}
+            </span>
+            {currentDifficulty === 'hard' && !hint && (
+              <button
+                onClick={requestHint}
+                disabled={loadingHint || isRecording}
+                style={{
+                  padding: '6px 12px',
+                  background: loadingHint || isRecording ? '#d1d5db' : '#fbbf24',
+                  color: loadingHint || isRecording ? '#6b7280' : '#000',
+                  border: 0,
+                  borderRadius: 6,
+                  cursor: loadingHint || isRecording ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+            }}
+          >
+            Start Interview
+          </button>
+        )}
+        
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
         {!isRecording && !isProcessing && questionNumber === 0 && (
           <button
