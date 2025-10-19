@@ -48,7 +48,9 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
-
+  const [currentDifficulty, setCurrentDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
+  const [loadingHint, setLoadingHint] = useState(false);
+  const [hintError, setHintError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -161,6 +163,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     setIsProcessing(true);
     setTranscript('');
     setCurrentQuestion('');
+    setHint(null);
+    setHintError(null); // 🆕 Reset hint error
     
     try {
       console.log('🎯 Fetching question for session:', sessionId);
@@ -186,6 +190,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       
       console.log('✅ Question loaded:', {
         number: data.questionNumber,
+        difficulty: data.difficulty,
         length: data.question?.length,
         hasAudio: !!data.audioBase64
       });
@@ -196,6 +201,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       setQuestionNumber(data.questionNumber);
       questionNumberRef.current = data.questionNumber;
+      setCurrentDifficulty(data.difficulty || null);
 
       if (data.questionNumber === 1) {
         await speakText("Great! Let's begin with the first question.");
@@ -234,7 +240,37 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       setIsProcessing(false);
     }
   }
+  async function requestHint() {
+  if (!questionNumber) return;
+  
+  setLoadingHint(true);
+  setHintError(null);
+  
+  try {
+    const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/hint`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ questionNumber }),
+    });
 
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || 'Failed to get hint');
+    }
+
+    const hintData = await res.json();
+    console.log('💡 Hint received:', hintData);
+    setHint(hintData);
+  } catch (err: any) {
+    console.error('❌ Hint request failed:', err);
+    setHintError(err.message);
+  } finally {
+    setLoadingHint(false);
+  }
+  }
   async function startRecording(qNum?: number) {
     try {
       const activeQuestionNumber = qNum ?? questionNumberRef.current;
@@ -577,7 +613,126 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           </p>
         )}
       </div>
+      {currentDifficulty && questionNumber > 0 && (
+      <div style={{ 
+        marginBottom: 16, 
+        textAlign: 'center',
+      }}>
+        <span style={{
+          display: 'inline-block',
+          padding: '4px 12px',
+          borderRadius: 12,
+          fontSize: 12,
+          fontWeight: 600,
+          background: 
+            currentDifficulty === 'easy' ? '#d1fae5' : 
+            currentDifficulty === 'medium' ? '#fef3c7' : 
+            '#fee2e2',
+          color: 
+            currentDifficulty === 'easy' ? '#065f46' : 
+            currentDifficulty === 'medium' ? '#92400e' : 
+            '#991b1b',
+        }}>
+          {currentDifficulty === 'easy' ? '🟢 Easy' : 
+           currentDifficulty === 'medium' ? '🟡 Medium' : 
+           '🔴 Hard'}
+        </span>
+      </div>
+    )}
 
+    {/* Hint Section - Only for HARD questions */}
+    {currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing && (
+      <div style={{ 
+        marginBottom: 24, 
+        padding: 16, 
+        background: '#fef3c7', 
+        border: '1px solid #fbbf24',
+        borderRadius: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 14, color: '#92400e', fontWeight: 600 }}>
+            🎯 Hard Question - Hint Available
+          </span>
+          {!hint && (
+            <button
+              onClick={requestHint}
+              disabled={loadingHint || isRecording}
+              style={{
+                padding: '6px 12px',
+                background: loadingHint || isRecording ? '#d1d5db' : '#fbbf24',
+                color: loadingHint || isRecording ? '#6b7280' : '#000',
+                border: 0,
+                borderRadius: 6,
+                cursor: loadingHint || isRecording ? 'not-allowed' : 'pointer',
+                fontWeight: 500,
+                fontSize: 13,
+              }}
+            >
+              {loadingHint ? '⏳ Loading...' : '💡 Get Hint'}
+            </button>
+          )}
+        </div>
+        
+        {hint && (
+          <div style={{ 
+            background: 'white', 
+            padding: 12, 
+            borderRadius: 6,
+            marginTop: 8,
+          }}>
+            <p style={{ margin: 0, marginBottom: 8, fontSize: 14, lineHeight: 1.5 }}>
+              <strong>💡 Hint:</strong> {hint.hint}
+            </p>
+            
+            {hint.keyTerms && hint.keyTerms.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <strong style={{ fontSize: 13 }}>Key Terms:</strong>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                  {hint.keyTerms.map((term, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        padding: '3px 8px',
+                        background: '#dbeafe',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        color: '#1e40af',
+                      }}
+                    >
+                      {term}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {hint.examples && hint.examples.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <strong style={{ fontSize: 13 }}>Consider:</strong>
+                <ul style={{ margin: '4px 0 0 0', paddingLeft: 20, fontSize: 13 }}>
+                  {hint.examples.map((example, i) => (
+                    <li key={i}>{example}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {hintError && (
+          <div style={{ 
+            marginTop: 8, 
+            padding: 8, 
+            background: '#fee2e2', 
+            borderRadius: 6,
+            fontSize: 13,
+            color: '#991b1b',
+          }}>
+            ⚠️ {hintError}
+          </div>
+        )}
+      </div>
+    )}
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
         {!isRecording && !isProcessing && questionNumber === 0 && (
           <button
