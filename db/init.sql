@@ -40,6 +40,28 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
   CONSTRAINT fk_session_user
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
+ALTER TABLE users 
+  ADD COLUMN IF NOT EXISTS user_type VARCHAR(20) DEFAULT 'candidate' 
+  CHECK (user_type IN ('candidate', 'recruiter'));
+
+-- Add company_name and recruiter_id to interview_profiles
+ALTER TABLE interview_profiles 
+  ADD COLUMN IF NOT EXISTS company_name TEXT,
+  ADD COLUMN IF NOT EXISTS recruiter_id UUID,
+  ADD COLUMN IF NOT EXISTS created_by_recruiter BOOLEAN DEFAULT false,
+  ADD CONSTRAINT fk_recruiter 
+    FOREIGN KEY (recruiter_id) REFERENCES users(id) ON DELETE SET NULL;
+
+-- Create index for faster queries
+CREATE INDEX IF NOT EXISTS idx_interview_profiles_recruiter_id 
+  ON interview_profiles(recruiter_id);
+
+CREATE INDEX IF NOT EXISTS idx_users_user_type 
+  ON users(user_type);
+
+-- Update existing users to be candidates by default
+UPDATE users SET user_type = 'candidate' WHERE user_type IS NULL;
+
 
 CREATE TABLE IF NOT EXISTS interview_qa (
   qa_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -157,3 +179,13 @@ VALUES (
   5
 )
 ON CONFLICT DO NOTHING;
+
+-- Seed a test recruiter
+INSERT INTO users (id, email, password_hash, user_type)
+VALUES (
+  'r0000000-0000-0000-0000-000000000001',
+  'recruiter@company.com', 
+  crypt('recruiter123', gen_salt('bf')),
+  'recruiter'
+)
+ON CONFLICT (email) DO NOTHING;
