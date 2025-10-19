@@ -1,3 +1,4 @@
+// frontend/src/pages/Interview.tsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import VoiceInterview from '../components/VoiceInterview';
@@ -6,6 +7,8 @@ type Profile = {
   role: string;
   interviewType: string;
   yearsOfExperience: number | string;
+  skills?: string[];
+  totalQuestions?: number; // 🆕 Add this field
 };
 
 export default function Interview() {
@@ -44,6 +47,8 @@ export default function Interview() {
             role: profile.role,
             interviewType: profile.interviewType,
             yearsOfExperience: profile.yearsOfExperience,
+            skills: profile.skills || [],
+            totalQuestions: profile.totalQuestions || 5, // 🆕 Pass totalQuestions to backend
           }),
         });
 
@@ -79,6 +84,9 @@ export default function Interview() {
       <div style={styles.page}>
         <div style={styles.card}>
           <h2>Setting up your interview...</h2>
+          <p style={{ color: '#6b7280', marginTop: 8 }}>
+            Preparing {profile.totalQuestions || 5} questions for you
+          </p>
         </div>
       </div>
     );
@@ -99,8 +107,11 @@ export default function Interview() {
     <div style={styles.page}>
       <div style={{ ...styles.card, maxWidth: 800 }}>
         <h1 style={styles.title}>{capitalize(profile.interviewType)} Interview</h1>
-        <p style={{ color: '#374151', marginBottom: 12 }}>
+        <p style={{ color: '#374151', marginBottom: 8 }}>
           <strong>Role:</strong> {capitalize(profile.role)}
+        </p>
+        <p style={{ color: '#374151', marginBottom: 12 }}>
+          <strong>Total Questions:</strong> {profile.totalQuestions || 5}
         </p>
 
         <div style={styles.instructions}>
@@ -108,9 +119,10 @@ export default function Interview() {
           <ul style={{ marginTop: 8, color: '#1f2937', lineHeight: 1.6 }}>
             <li>Find a <strong>quiet, well-lit</strong> room before starting.</li>
             <li>Ensure your <strong>microphone</strong> and <strong>internet</strong> connection are stable.</li>
-            <li>Answer questions clearly and naturally — you’ll be recorded.</li>
+            <li>Answer questions clearly and naturally — you'll be recorded.</li>
             <li>You may take a short pause before responding.</li>
-            <li>Press <strong>“End Interview”</strong> once all questions are complete.</li>
+            <li>You'll be asked <strong>{profile.totalQuestions || 5} questions</strong> in total.</li>
+            <li>Press <strong>"End Interview"</strong> if you need to stop early.</li>
           </ul>
         </div>
 

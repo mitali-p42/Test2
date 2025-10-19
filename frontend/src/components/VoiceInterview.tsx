@@ -8,6 +8,7 @@ type Props = {
     role: string;
     interviewType: string;
     yearsOfExperience: number | string;
+    totalQuestions?: number;
   };
   onComplete: () => void;
 };
@@ -49,6 +50,7 @@ function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) 
 export default function VoiceInterview({ sessionId, profile, onComplete }: Props) {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const navigate = useNavigate();
+  const [totalQuestions, setTotalQuestions] = useState(5);
   const [questionNumber, setQuestionNumber] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [liveTranscript, setLiveTranscript] = useState(''); // 🆕 Live transcript from browser
@@ -401,22 +403,23 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   }
 
   async function fetchNextQuestion() {
-    if (interviewEndedEarlyRef.current) {
-      console.log('⏹️ Interview ended early, skipping next question');
-      return;
-    }
+  if (interviewEndedEarlyRef.current) {
+    console.log('⏹️ Interview ended early, skipping next question');
+    return;
+  }
 
-    setIsProcessing(true);
-    setTranscript('');
-    setLiveTranscript('');
-    finalTranscriptRef.current = ''; // Reset browser transcript
-    setCurrentQuestion('');
-    setHint(null);
-    setHintError(null);
-    setCurrentDifficulty(null);
+  setIsProcessing(true);
+  setTranscript('');
+  setLiveTranscript('');
+  finalTranscriptRef.current = '';
+  setCurrentQuestion('');
+  setHint(null);
+  setHintError(null);
+  setCurrentDifficulty(null);
 
-    try {
-      console.log('🎯 Fetching question for session:', sessionId);
+  try {
+    console.log('🎯 Fetching question for session:', sessionId);
+
 
       if (questionNumberRef.current > 0) {
         await speakText("Great answer! Let's move on to the next question.");
@@ -440,9 +443,14 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       console.log('✅ Question loaded:', {
         number: data.questionNumber,
         difficulty: data.difficulty,
+        totalQuestions: data.totalQuestions,
         length: data.question?.length,
         hasAudio: !!data.audioBase64,
       });
+
+      if (data.totalQuestions) {
+      setTotalQuestions(data.totalQuestions);
+      }
 
       if (!data.questionNumber) {
         throw new Error('Invalid question number');
@@ -796,7 +804,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           return;
         }
 
-        if (currentQuestionNumber < 5) {
+        if (currentQuestionNumber < totalQuestions) {
           console.log('📝 Next question...');
           fetchNextQuestion();
         } else {
@@ -940,28 +948,11 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           </div>
         </div>
       )}
-      {/* 🆕 Tab Switch Counter (always visible) */}
-      {/* {questionNumber > 0 && !interviewTerminated && (
-        <div style={{ 
-          marginBottom: 16, 
-          padding: 8, 
-          background: tabSwitchCount > 0 ? '#fef3c7' : '#f3f4f6',
-          borderRadius: 8,
-          fontSize: 13,
-          textAlign: 'center',
-          color: tabSwitchCount > 0 ? '#92400e' : '#6b7280',
-        }}>
-          {tabSwitchCount === 0 ? (
-            '✅ No tab switches detected'
-          ) : (
-            `⚠️ Tab switches: ${tabSwitchCount}/3 (${Math.max(0, 2 - tabSwitchCount)} warnings remaining)`
-          )}
-        </div>
-      )} */}
+
 
       <div style={{ marginBottom: 24, padding: 16, background: '#f3f4f6', borderRadius: 8 }}>
         {questionNumber > 0 && (
-          <h2 style={{ margin: 0, marginBottom: 12 }}>Question {questionNumber} of 5</h2>
+          <h2 style={{ margin: 0, marginBottom: 12 }}> Question {questionNumber} of {totalQuestions}</h2>
         )}
 
         {currentQuestion ? (
@@ -974,34 +965,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           </p>
         )}
       </div>
-
-      {/* {currentDifficulty && questionNumber > 0 && (
-        <div style={{ marginBottom: 16, textAlign: 'center' }}>
-          <span
-            style={{
-              display: 'inline-block',
-              padding: '4px 12px',
-              borderRadius: 12,
-              fontSize: 12,
-              fontWeight: 600,
-              background:
-                currentDifficulty === 'easy'
-                  ? '#d1fae5'
-                  : currentDifficulty === 'medium'
-                  ? '#fef3c7'
-                  : '#fee2e2',
-              color:
-                currentDifficulty === 'easy'
-                  ? '#065f46'
-                  : currentDifficulty === 'medium'
-                  ? '#92400e'
-                  : '#991b1b',
-            }}
-          >
-            {currentDifficulty === 'easy' ? '🟢 Easy' : currentDifficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
-          </span>
-        </div>
-      )} */}
 
       {currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing && (
         <div
@@ -1193,7 +1156,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           >
             <h3 style={{ marginTop: 0 }}>End Interview?</h3>
             <p style={{ color: '#666', marginBottom: 24 }}>
-              Are you sure you want to end this interview? You've answered {questionNumber} out of 5 questions.
+              Are you sure you want to end this interview? You've answered {questionNumber} out of {totalQuestions} questions.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               <button

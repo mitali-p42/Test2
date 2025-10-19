@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT users_id_email_unique UNIQUE (id, email)
 );
-
 CREATE TABLE IF NOT EXISTS interview_profiles (
   interview_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
@@ -15,7 +14,7 @@ CREATE TABLE IF NOT EXISTS interview_profiles (
   role TEXT,
   interview_type TEXT,
   years_of_experience NUMERIC(3,1),
-  skills TEXT[] DEFAULT '{}', -- 🆕 Add skills array
+  skills TEXT[] DEFAULT '{}', 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT fk_interview_user
@@ -105,7 +104,7 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type, skills)
+INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type, skills,total_questions)
 VALUES (
   'a0000000-0000-0000-0000-000000000001',
   'a@gmail.com', 
@@ -123,11 +122,7 @@ VALUES (
     'feature prioritization',
     'API design',
     'metrics and KPIs'
-  ]
+  ],
+  10
 )
-
-UPDATE interview_profiles 
-SET total_questions = 5 
-WHERE total_questions IS NULL;
-
 ON CONFLICT DO NOTHING;
