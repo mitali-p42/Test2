@@ -16,7 +16,6 @@ export default function Interview() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'creating' | 'ready' | 'completed'>('creating');
 
-  // 🆕 Helper to capitalize
   const capitalize = (str: string) => {
     return str
       .split(' ')
@@ -33,7 +32,6 @@ export default function Interview() {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    // Create session
     (async () => {
       try {
         const res = await fetch(`${import.meta.env.VITE_API_BASE}/interview/sessions`, {
@@ -52,13 +50,12 @@ export default function Interview() {
         if (res.ok) {
           const data = await res.json();
           setSessionId(data.sessionId);
-          
-          // Start session
+
           await fetch(`${import.meta.env.VITE_API_BASE}/interview/sessions/${data.sessionId}/start`, {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${token}` },
           });
-          
+
           setStatus('ready');
         }
       } catch (err) {
@@ -79,37 +76,97 @@ export default function Interview() {
 
   if (status === 'creating') {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
-        <h2>Setting up your interview...</h2>
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <h2>Setting up your interview...</h2>
+        </div>
       </div>
     );
   }
 
   if (status === 'completed') {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
-        <h2>✅ Interview Completed!</h2>
-        <button onClick={() => navigate('/')}>Back to Home</button>
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <h2>✅ Interview Completed!</h2>
+          <button style={styles.button} onClick={() => navigate('/')}>Back to Home</button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ maxWidth: 800, margin: '0 auto', marginBottom: 24 }}>
-        <h1>{capitalize(profile.interviewType)} Interview</h1>
-        <p style={{ color: '#666' }}>
+    <div style={styles.page}>
+      <div style={{ ...styles.card, maxWidth: 800 }}>
+        <h1 style={styles.title}>{capitalize(profile.interviewType)} Interview</h1>
+        <p style={{ color: '#374151', marginBottom: 12 }}>
           <strong>Role:</strong> {capitalize(profile.role)}
         </p>
-      </div>
 
-      {sessionId && (
-        <VoiceInterview
-          sessionId={sessionId}
-          profile={profile}
-           onComplete={() => {}} 
-        />
-      )}
+        <div style={styles.instructions}>
+          <h3 style={{ marginTop: 0 }}>📝 Instructions</h3>
+          <ul style={{ marginTop: 8, color: '#1f2937', lineHeight: 1.6 }}>
+            <li>Find a <strong>quiet, well-lit</strong> room before starting.</li>
+            <li>Ensure your <strong>microphone</strong> and <strong>internet</strong> connection are stable.</li>
+            <li>Answer questions clearly and naturally — you’ll be recorded.</li>
+            <li>You may take a short pause before responding.</li>
+            <li>Press <strong>“End Interview”</strong> once all questions are complete.</li>
+          </ul>
+        </div>
+
+        {sessionId && (
+          <div style={{ marginTop: 24 }}>
+            <VoiceInterview
+              sessionId={sessionId}
+              profile={profile}
+              onComplete={() => {}} 
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+/* 🎨 Simple inline styles for a light, modern look */
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh',
+    backgroundColor: '#e0f2feff', // light blue background
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    padding: '48px 16px',
+  },
+  card: {
+    background: '#ffffff',
+    borderRadius: 12,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+    padding: '24px 32px',
+    width: '100%',
+    maxWidth: 600,
+  },
+  title: {
+    marginTop: 0,
+    marginBottom: 12,
+    fontSize: 24,
+    color: '#111827',
+  },
+  instructions: {
+    marginTop: 16,
+    background: '#f0f9ff',
+    borderRadius: 8,
+    border: '1px solid #bae6fd',
+    padding: 16,
+  },
+  button: {
+    marginTop: 16,
+    padding: '10px 20px',
+    background: '#0ea5e9',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 600,
+  },
+};

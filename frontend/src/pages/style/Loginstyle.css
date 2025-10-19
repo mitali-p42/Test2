@@ -1,0 +1,49 @@
+/* src/pages/Login.css */
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: #f5f6fa;
+}
+
+.auth-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 2rem 2.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  max-width: 380px;
+  width: 100%;
+}
+
+.auth-title {
+  text-align: center;
+  color: #333;
+  font-size: 1.6rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+
+.auth-switch {
+  text-align: center;
+  margin-top: 1rem;
+  color: #555;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  color: #0077cc;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.link-btn:hover {
+  color: #005fa3;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

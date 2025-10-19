@@ -415,58 +415,127 @@ async function recordTabSwitch() {
   }
 
   // 🆕 Transcribe audio chunk for live display
+  // async function transcribeChunk(audioBlob: Blob): Promise<string> {
+  //   try {
+  //     const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+  //     let extension = 'webm';
+  //     if (mimeType.includes('mp4')) extension = 'm4a';
+  //     else if (mimeType.includes('ogg')) extension = 'ogg';
+
+  //     const formData = new FormData();
+  //     formData.append('audio', audioBlob, `chunk-${Date.now()}.${extension}`);
+  //     formData.append('previousContext', previousContextRef.current);
+
+  //     const res = await fetch(`${API_BASE}/interview/transcribe-chunk`, {
+  //       method: 'POST',
+  //       headers: { Authorization: `Bearer ${token}` },
+  //       body: formData,
+  //     });
+
+  //     if (!res.ok) {
+  //       console.warn('⚠️ Chunk transcription failed:', res.status);
+  //       return '';
+  //     }
+
+  //     const data = await res.json();
+  //     return data.text || '';
+  //   } catch (err) {
+  //     console.error('❌ Chunk transcription error:', err);
+  //     return '';
+  //   }
+  // }
   async function transcribeChunk(audioBlob: Blob): Promise<string> {
-    try {
-      const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
-      let extension = 'webm';
-      if (mimeType.includes('mp4')) extension = 'm4a';
-      else if (mimeType.includes('ogg')) extension = 'ogg';
+  try {
+    const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+    let extension = 'webm';
+    if (mimeType.includes('mp4')) extension = 'm4a';
+    else if (mimeType.includes('ogg')) extension = 'ogg';
 
-      const formData = new FormData();
-      formData.append('audio', audioBlob, `chunk-${Date.now()}.${extension}`);
-      formData.append('previousContext', previousContextRef.current);
+    const formData = new FormData();
+    formData.append('audio', audioBlob, `chunk-${Date.now()}.${extension}`);
+    formData.append('previousContext', previousContextRef.current);
 
-      const res = await fetch(`${API_BASE}/interview/transcribe-chunk`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
+    console.log(`🌐 Sending ${audioBlob.size} bytes to backend...`);
 
-      if (!res.ok) {
-        console.warn('⚠️ Chunk transcription failed:', res.status);
-        return '';
-      }
+    const res = await fetch(`${API_BASE}/interview/transcribe-chunk`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
 
-      const data = await res.json();
-      return data.text || '';
-    } catch (err) {
-      console.error('❌ Chunk transcription error:', err);
+    if (!res.ok) {
+      console.error('❌ Chunk transcription failed:', res.status, await res.text());
       return '';
     }
+
+    const data = await res.json();
+    console.log('✅ Backend response:', data);
+    return data.text || '';
+  } catch (err) {
+    console.error('❌ Chunk transcription error:', err);
+    return '';
+  }
+}
+  // 🆕 Process accumulated chunks for live transcript
+  // async function processLiveTranscript() {
+  //   if (streamChunksRef.current.length === 0) return;
+
+  //   const chunksToProcess = [...streamChunksRef.current];
+  //   streamChunksRef.current = [];
+
+  //   const audioBlob = new Blob(chunksToProcess, { 
+  //     type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
+  //   });
+
+  //   const newText = await transcribeChunk(audioBlob);
+    
+  //   if (newText && isRecordingRef.current) { 
+  //     setLiveTranscript(prev => {
+  //       const updated = prev ? `${prev} ${newText}` : newText;
+  //       previousContextRef.current = updated.split(' ').slice(-50).join(' '); // Keep last 50 words as context
+  //       return updated;
+  //     });
+  //   }
+  // }
+
+  async function processLiveTranscript() {
+  // Check if we have chunks to process
+  if (streamChunksRef.current.length === 0) {
+    console.log('⏭️ No chunks to process yet');
+    return;
   }
 
-  // 🆕 Process accumulated chunks for live transcript
-  async function processLiveTranscript() {
-    if (streamChunksRef.current.length === 0) return;
-    if (!isRecordingRef.current) return; 
+  // IMPORTANT: Don't check isRecordingRef here - process what we have
+  console.log(`📦 Processing ${streamChunksRef.current.length} audio chunks...`);
 
-    const chunksToProcess = [...streamChunksRef.current];
-    streamChunksRef.current = [];
+  const chunksToProcess = [...streamChunksRef.current];
+  streamChunksRef.current = []; // Clear for next batch
 
+  try {
     const audioBlob = new Blob(chunksToProcess, { 
       type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
     });
 
+    console.log(`🎤 Transcribing ${audioBlob.size} bytes...`);
     const newText = await transcribeChunk(audioBlob);
     
-    if (newText && isRecordingRef.current) { 
+    console.log(`✅ Transcribed: "${newText.substring(0, 50)}..."`);
+
+    // Update live transcript if we got text
+    if (newText && newText.trim()) {
       setLiveTranscript(prev => {
         const updated = prev ? `${prev} ${newText}` : newText;
-        previousContextRef.current = updated.split(' ').slice(-50).join(' '); // Keep last 50 words as context
+        previousContextRef.current = updated.split(' ').slice(-50).join(' ');
+        console.log(`📝 Live transcript updated: ${updated.length} chars`);
         return updated;
       });
+    } else {
+      console.log('⚠️ Empty transcription result');
     }
+  } catch (err) {
+    console.error('❌ Live transcription error:', err);
   }
+}
 
   async function fetchNextQuestion() {
     if (interviewEndedEarlyRef.current) {
@@ -599,80 +668,82 @@ async function recordTabSwitch() {
   }
 
   async function startRecording(qNum?: number) {
-    try {
-      const activeQuestionNumber = qNum ?? questionNumberRef.current;
+  try {
+    const activeQuestionNumber = qNum ?? questionNumberRef.current;
+    console.log('🎤 Starting recording for question:', activeQuestionNumber);
 
-      console.log('🎤 Starting recording for question:', activeQuestionNumber);
+    if (!activeQuestionNumber) {
+      throw new Error('Invalid question number');
+    }
 
-      if (!activeQuestionNumber) {
-        throw new Error('Invalid question number');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 44100,
+        channelCount: 1,
+      },
+    });
+
+    // Setup audio analysis
+    audioContextRef.current = new AudioContext();
+    const source = audioContextRef.current.createMediaStreamSource(stream);
+    analyserRef.current = audioContextRef.current.createAnalyser();
+    analyserRef.current.fftSize = 2048;
+    source.connect(analyserRef.current);
+
+    const mimeType = getSupportedMimeType();
+    const options: MediaRecorderOptions = {};
+    if (mimeType) {
+      options.mimeType = mimeType;
+      if (isSafari && mimeType.includes('mp4')) {
+        (options as any).audioBitsPerSecond = 128000;
       }
+    }
 
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Audio recording not supported');
+    mediaRecorderRef.current = new MediaRecorder(stream, options);
+    audioChunksRef.current = [];
+    streamChunksRef.current = [];
+    previousContextRef.current = '';
+
+    // Handle data as it comes in
+    mediaRecorderRef.current.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        console.log('📦 Chunk received:', e.data.size, 'bytes');
+        audioChunksRef.current.push(e.data);
+        streamChunksRef.current.push(e.data); // For live transcription
       }
+    };
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 44100,
-          channelCount: 1,
-        },
-      });
+    mediaRecorderRef.current.onstop = handleRecordingStop;
+    mediaRecorderRef.current.onerror = (e: Event) => {
+      console.error('❌ MediaRecorder error:', e);
+      stopRecording();
+    };
 
-      audioContextRef.current = new AudioContext();
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 2048;
-      source.connect(analyserRef.current);
+    // 🔥 CRITICAL: Set refs BEFORE starting recorder
+    setIsRecording(true);
+    isRecordingRef.current = true;
+    setTranscript('');
+    setLiveTranscript('');
+    silenceStartRef.current = null;
 
-      const mimeType = getSupportedMimeType();
-      const options: MediaRecorderOptions = {};
-      if (mimeType) {
-        options.mimeType = mimeType;
-        if (isSafari && mimeType.includes('mp4')) {
-          (options as any).audioBitsPerSecond = 128000;
-        }
+    // Start with 2-second chunks
+    const timeslice = 2000;
+    mediaRecorderRef.current.start(timeslice);
+    console.log(`✅ Recording started with ${timeslice}ms chunks`);
+
+    // 🔥 IMPORTANT: Start transcription interval AFTER first chunk arrives
+    // Give it 2.5 seconds for the first chunk to arrive (timeslice is 2s)
+    setTimeout(() => {
+      if (isRecordingRef.current) {
+        console.log('🎙️ Starting live transcription interval...');
+        transcriptionIntervalRef.current = setInterval(processLiveTranscript, 3000);
       }
+    }, 2500);
 
-      console.log('📹 MediaRecorder options:', options);
-      mediaRecorderRef.current = new MediaRecorder(stream, options);
-      audioChunksRef.current = [];
-      streamChunksRef.current = []; // 🆕 Reset stream chunks
-      setLiveTranscript(''); // 🆕 Clear live transcript
-      previousContextRef.current = ''; // 🆕 Reset context
-
-      mediaRecorderRef.current.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-          streamChunksRef.current.push(e.data); // 🆕 Also add to stream chunks
-          console.log('📦 Chunk:', e.data.size, 'bytes');
-        }
-      };
-
-      mediaRecorderRef.current.onstop = handleRecordingStop;
-
-      mediaRecorderRef.current.onerror = (e: Event) => {
-        console.error('❌ MediaRecorder error:', e);
-        stopRecording();
-      };
-
-      const timeslice = 2000; // 🆕 Smaller chunks for live transcription
-      mediaRecorderRef.current.start(timeslice);
-
-      setIsRecording(true);
-      isRecordingRef.current = true;
-      setTranscript(''); // Clear final transcript
-      setIsProcessing(false);
-      silenceStartRef.current = null;
-
-      // 🆕 Start live transcription interval
-      transcriptionIntervalRef.current = setInterval(processLiveTranscript, 3000); // Every 2 seconds
-
-      console.log('✅ Recording started with live transcription');
-      detectSilence();
+    detectSilence();
     } catch (err: any) {
       console.error('❌ Recording failed:', err);
 

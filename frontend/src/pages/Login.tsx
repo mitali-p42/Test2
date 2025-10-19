@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import LoginForm from '../components/LoginForm';
+import './style/Loginstyle.css'; 
 
 export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -11,7 +12,6 @@ export default function Login() {
   const nav = useNavigate();
   const { login, register, token } = useAuth();
 
-  // ✅ redirect only when token changes, not during render
   useEffect(() => {
     if (token) nav('/');
   }, [token, nav]);
@@ -25,12 +25,9 @@ export default function Login() {
       } else {
         await register(email, password);
       }
-      // no need to nav('/') here — the effect above will run when token is set
     } catch (err: any) {
-      // Try to normalize the backend/Nest error shape
       let msg = 'Something went wrong';
       try {
-        // If your api helper throws a Response-like object:
         if (err?.json) {
           const data = await err.json();
           msg = Array.isArray(data?.message) ? data.message[0] : (data?.message || msg);
@@ -41,7 +38,7 @@ export default function Login() {
           msg = err.message;
         }
       } catch {
-        /* ignore secondary parse errors */
+        /* ignore */
       }
       setError(msg);
     } finally {
@@ -51,28 +48,32 @@ export default function Login() {
 
   return (
     <div className="auth-page">
-      <div>
+      <div className="auth-card">
+        <h1 className="auth-title">{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h1>
         <LoginForm
           mode={mode}
           onSubmit={onSubmit}
           error={error ?? undefined}
           loading={loading}
         />
-        <p style={{ textAlign: 'center', marginTop: 16 }}>
+        <p className="auth-switch">
           {mode === 'login' ? (
             <>
               New here?{' '}
-              <button onClick={() => setMode('register')}>Create an account</button>
+              <button className="link-btn" onClick={() => setMode('register')}>
+                Create an account
+              </button>
             </>
           ) : (
             <>
               Already have an account?{' '}
-              <button onClick={() => setMode('login')}>Login</button>
+              <button className="link-btn" onClick={() => setMode('login')}>
+                Login
+              </button>
             </>
           )}
         </p>
       </div>
     </div>
   );
-
 }
