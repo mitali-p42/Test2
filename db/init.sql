@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS interview_qa (
   question_number INT NOT NULL,
   question TEXT NOT NULL,
   question_category TEXT, -- 🆕 behavioral, technical, situational, etc.
+  difficulty VARCHAR(10),
   answer TEXT,
   transcript TEXT,
   
@@ -81,7 +82,9 @@ CREATE TABLE IF NOT EXISTS interview_qa (
     FOREIGN KEY (session_id) REFERENCES interview_sessions (session_id) ON DELETE CASCADE,
   CONSTRAINT fk_qa_user
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-  UNIQUE(session_id, question_number)
+  UNIQUE(session_id, question_number),  -- ✅ Added comma here
+CONSTRAINT chk_difficulty 
+CHECK (difficulty IN ('easy', 'medium', 'hard') OR difficulty IS NULL)
 );
 
 -- 🆕 Indexes for better query performance

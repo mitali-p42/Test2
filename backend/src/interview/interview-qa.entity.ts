@@ -34,6 +34,9 @@ export class InterviewQA {
   @Column({ name: 'question_category', type: 'text', nullable: true })
   questionCategory!: string | null;
 
+  @Column({ name: 'difficulty', type: 'varchar', length: 10, nullable: true })
+  difficulty!: 'easy' | 'medium' | 'hard' | null;
+
   @Column({ name: 'answer', type: 'text', nullable: true })
   answer!: string | null;
 
