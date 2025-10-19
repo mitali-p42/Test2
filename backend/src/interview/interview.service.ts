@@ -357,8 +357,10 @@ async transcribeAudioChunk(
         's.sessionId',
         's.role',
         's.interviewType',
+        's.totalQuestions',
         's.status',
         's.startedAt',
+        's.terminatedForTabSwitches', 
         's.completedAt',
         's.createdAt',
         'u.id',
@@ -375,13 +377,13 @@ async transcribeAudioChunk(
       order: { questionNumber: 'ASC' },
     });
 
-    const totalQuestions = qaList.length;
+    const totalQuestions = session.totalQuestions || 5;
     const answeredQuestions = qaList.filter((qa) => qa.answer).length;
 
-    const avgOverallScore =
-      answeredQuestions > 0
-        ? qaList.reduce((sum, qa) => sum + (qa.overallScore || 0), 0) / answeredQuestions
-        : 0;
+    const sumOfScores = qaList.reduce((sum, qa) => sum + (qa.overallScore || 0), 0);
+    const avgOverallScore = totalQuestions > 0 
+    ? Math.round(sumOfScores / totalQuestions) // 🔥 Divide by total, not answered
+    : 0;
 
     // Aggregate by difficulty
     const difficultyPerformance: Record<
@@ -422,6 +424,7 @@ async transcribeAudioChunk(
         questionCategory: qa.questionCategory,
         difficulty: qa.difficulty,
         question: qa.question,
+        totalQuestions,
         answer: qa.answer,
         transcript: qa.transcript,
         scores: {

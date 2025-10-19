@@ -140,105 +140,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       shouldShowHint: currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing,
     });
   }, [currentDifficulty, questionNumber, isProcessing, isRecording]);
-  // useEffect(() => {
-  //   if (interviewTerminated || interviewEndedEarlyRef.current) {
-  //     console.log('⏹️ Interview ended, skipping tab detection');
-  //     return;
-  //   }
-
-  //   let isTabVisible = !document.hidden;
-  //   hasRecordedTabSwitchRef.current = false;
-
-  //   const handleVisibilityChange = async () => {
-  //     const wasVisible = isTabVisible;
-  //     isTabVisible = !document.hidden;
-
-  //     console.log('👁️ Visibility changed:', {
-  //       wasVisible,
-  //       isVisible: isTabVisible,
-  //       hasRecorded: hasRecordedTabSwitchRef.current,
-  //     });
-
-  //     // Only track when user LEAVES the tab (visible -> hidden)
-  //     if (wasVisible && !isTabVisible && !hasRecordedTabSwitchRef.current) {
-  //       console.log('🚨 User switched away from tab');
-  //       hasRecordedTabSwitchRef.current = true;
-  //       await recordTabSwitch();
-  //     }
-
-  //     // Reset flag when they come back
-  //     if (!wasVisible && isTabVisible) {
-  //       console.log('✅ User returned to tab');
-  //       hasRecordedTabSwitchRef.current = false;
-  //     }
-  //   };
-  //   document.addEventListener('visibilitychange', handleVisibilityChange);
-
-  //   return () => {
-  //     document.removeEventListener('visibilitychange', handleVisibilityChange);
-  //   };
-  // }, [sessionId, token, API_BASE, interviewTerminated]);
-
-  // // 🆕 Record tab switch
-  // async function recordTabSwitch() {
-  //   try {
-  //     console.log('📊 Recording tab switch for session:', sessionId);
-
-  //     const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/tab-switch`, {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //         Authorization: `Bearer ${token}`,
-  //       },
-  //     });
-
-  //     if (!res.ok) {
-  //       console.error('❌ Failed to record tab switch:', res.status);
-  //       return;
-  //     }
-
-  //     const data = await res.json();
-      
-  //     console.log('✅ Tab switch recorded:', data);
-
-  //     setTabSwitchCount(data.tabSwitches);
-
-  //     if (data.shouldTerminate) {
-  //       console.log('🛑 Interview terminated due to tab switches');
-  //       setWarningMessage('❌ Interview terminated: You switched tabs too many times.');
-  //       setInterviewTerminated(true);
-  //       setShowTabWarning(true);
-        
-  //       // Force stop recording
-  //       if (isRecording) {
-  //         stopRecording();
-  //       }
-
-  //       // Auto-complete after showing message
-  //       setTimeout(() => {
-  //         handleTabSwitchTermination();
-  //       }, 5000);
-  //     } else {
-  //       // Show warning
-  //       setWarningMessage(data.message);
-  //       setShowTabWarning(true);
-
-  //       // Auto-hide warning after 8 seconds
-  //       setTimeout(() => {
-  //         setShowTabWarning(false);
-  //       }, 8000);
-  //     }
-  //   } catch (err: any) {
-  //     console.error('❌ Tab switch recording error:', err);
-  //   }
-  // }
-
-  // 🆕 Handle interview termination due to tab switches
-  // frontend/src/components/VoiceInterview.tsx
-
-// 🆕 Enhanced Tab Switch Detection with multiple fallbacks
-// frontend/src/components/VoiceInterview.tsx
-// Replace the useEffect for tab detection with this improved version:
 
 useEffect(() => {
   if (interviewTerminated || interviewEndedEarlyRef.current) {
@@ -358,6 +259,34 @@ async function recordTabSwitch() {
     
     interviewEndedEarlyRef.current = true;
 
+    if (isRecording) {
+    console.log('⏹️ Force stopping recording...');
+    stopRecording(); // This should stop the MediaRecorder
+    }
+    if (mediaRecorderRef.current) {
+    try {
+      if (mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      // Stop all tracks
+      mediaRecorderRef.current.stream?.getTracks().forEach(track => {
+        console.log('⏹️ Stopping track:', track.label);
+        track.stop();
+      });
+      mediaRecorderRef.current = null;
+    } catch (err) {
+      console.error('❌ Error stopping media recorder:', err);
+    }
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+    try {
+      await audioContextRef.current.close();
+      audioContextRef.current = null;
+    } catch (err) {
+      console.error('❌ Error closing audio context:', err);
+    }
+  }
+
     if (animationFrameRef.current) {
     cancelAnimationFrame(animationFrameRef.current);
     animationFrameRef.current = null;
@@ -369,6 +298,8 @@ async function recordTabSwitch() {
   }
 
     setIsProcessing(true);
+    setIsRecording(false);
+    setAudioLevel(0);
     
     try {
     // Mark session as completed
