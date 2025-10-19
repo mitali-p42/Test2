@@ -196,6 +196,9 @@ CRITICAL: Return ONLY valid JSON with this structure:
       throw new Error('Transcription failed');
     }
   }
+  async generateWarmupQuestion(role: string): Promise<string> {
+  return `Let's start with a quick warm-up. Tell me briefly about your background as a ${role} and what interests you most about this role.`;
+}
   async transcribeAudioStreaming(audioBuffer: Buffer, filename: string = 'audio.webm'): Promise<string> {
   try {
     const tempPath = path.join('/tmp', filename);
