@@ -1,7 +1,6 @@
-// frontend/src/components/VoiceInterview.tsx (UPDATED with Live Transcript)
+// frontend/src/components/VoiceInterview.tsx (Browser Speech Recognition)
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
 
 type Props = {
   sessionId: string;
@@ -27,7 +26,6 @@ function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) 
     setDisplayedText('');
     setCurrentIndex(0);
   }, [text]);
-  
 
   useEffect(() => {
     if (currentIndex < text.length) {
@@ -47,53 +45,13 @@ function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) 
     </span>
   );
 }
-// function TabSwitchTester() {
-//   const [visibilityState, setVisibilityState] = React.useState(document.visibilityState);
-//   const [switchCount, setSwitchCount] = React.useState(0);
-
-//   React.useEffect(() => {
-//     const handler = () => {
-//       const newState = document.visibilityState;
-//       setVisibilityState(newState);
-      
-//       if (newState === 'hidden') {
-//         setSwitchCount(prev => prev + 1);
-//         console.log('🧪 TEST: Tab switch detected!');
-//       }
-//     };
-
-//     document.addEventListener('visibilitychange', handler);
-//     return () => document.removeEventListener('visibilitychange', handler);
-//   }, []);
-
-//   return (
-//     <div style={{
-//       position: 'fixed',
-//       bottom: 20,
-//       right: 20,
-//       padding: 12,
-//       background: '#1f2937',
-//       color: 'white',
-//       borderRadius: 8,
-//       fontSize: 12,
-//       zIndex: 9999,
-//     }}>
-//       <div><strong>Tab Detection Test</strong></div>
-//       <div>State: {visibilityState}</div>
-//       <div>Switches detected: {switchCount}</div>
-//       <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>
-//         Switch tabs to test
-//       </div>
-//     </div>
-//   );
-// }
 
 export default function VoiceInterview({ sessionId, profile, onComplete }: Props) {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const navigate = useNavigate();
   const [questionNumber, setQuestionNumber] = useState(0);
   const [transcript, setTranscript] = useState('');
-  const [liveTranscript, setLiveTranscript] = useState(''); // 🆕 Live transcript
+  const [liveTranscript, setLiveTranscript] = useState(''); // 🆕 Live transcript from browser
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -107,9 +65,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [showTabWarning, setShowTabWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
   const [interviewTerminated, setInterviewTerminated] = useState(false);
-  const hasRecordedTabSwitchRef = useRef(false);
-
-
+  const isRecognitionActiveRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -119,16 +75,14 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const questionNumberRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
   const interviewEndedEarlyRef = useRef(false);
-  
-  // 🆕 Live transcription refs
-  const streamChunksRef = useRef<Blob[]>([]);
-  const lastChunkTimeRef = useRef<number>(0);
-  const transcriptionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const previousContextRef = useRef<string>('');
+
+  // 🆕 Browser Speech Recognition refs
+  const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef<string>('');
 
   const token = localStorage.getItem('token');
   const API_BASE = import.meta.env.VITE_API_BASE;
-
+  
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
   useEffect(() => {
@@ -141,214 +95,246 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     });
   }, [currentDifficulty, questionNumber, isProcessing, isRecording]);
 
-useEffect(() => {
-  if (interviewTerminated || interviewEndedEarlyRef.current) {
-    console.log('⏹️ Interview ended, skipping tab detection');
-    return;
-  }
+  // 🆕 Initialize Browser Speech Recognition
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-  console.log('🔍 Setting up tab switch detection...');
-  
-  let lastTabSwitchTime = 0;
-  const DEBOUNCE_MS = 2000; // 2 seconds between recordings
-
-  // Simple, reliable tab switch detection
-  const handleVisibilityChange = async () => {
-    const now = Date.now();
-    
-    // User SWITCHED AWAY from tab (visible -> hidden)
-    if (document.visibilityState === 'hidden') {
-      console.log('🚨 Tab hidden - user switched away');
-      
-      // Debounce: don't record if we just recorded one
-      if (now - lastTabSwitchTime < DEBOUNCE_MS) {
-        console.log('⏭️ Skipping - too soon after last switch');
-        return;
-      }
-      
-      lastTabSwitchTime = now;
-      await recordTabSwitch();
-    }
-    
-    // User RETURNED to tab
-    else if (document.visibilityState === 'visible') {
-      console.log('✅ Tab visible - user returned');
-    }
-  };
-
-  // Add single listener
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  
-  // Log initial state
-  console.log('📊 Initial visibility state:', document.visibilityState);
-
-  // Cleanup
-  return () => {
-    console.log('🧹 Cleaning up tab detection');
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-  };
-}, [sessionId, token, API_BASE, interviewTerminated]);
-
-// Simplified recordTabSwitch function
-async function recordTabSwitch() {
-  if (interviewTerminated || interviewEndedEarlyRef.current) {
-    console.log('⏹️ Interview already ended, ignoring tab switch');
-    return;
-  }
-
-  try {
-    console.log('📊 Recording tab switch for session:', sessionId);
-
-    const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/tab-switch`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!res.ok) {
-      console.error('❌ Tab switch recording failed:', res.status);
+    if (!SpeechRecognition) {
+      console.warn('⚠️ Speech Recognition not supported in this browser');
       return;
     }
 
-    const data = await res.json();
-    
-    console.log('✅ Tab switch recorded:', {
-      count: data.tabSwitches,
-      shouldTerminate: data.shouldTerminate,
-    });
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
 
-    setTabSwitchCount(data.tabSwitches);
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
 
-    if (data.shouldTerminate) {
-      console.log('🛑 Terminating interview - too many tab switches');
-      setWarningMessage('❌ Interview terminated: You switched tabs 3 times.');
-      setInterviewTerminated(true);
-      setShowTabWarning(true);
-      
-      if (isRecording) {
-        stopRecording();
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+          finalTranscriptRef.current += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
       }
 
-      setTimeout(() => {
-        handleTabSwitchTermination();
-      }, 5000);
-    } else {
-      // Show warning
-      const remaining = 3 - data.tabSwitches;
-      setWarningMessage(
-        `⚠️ Warning: Tab switch detected (${data.tabSwitches}/3)\n\n` +
-        `You have ${remaining} warning${remaining !== 1 ? 's' : ''} remaining. ` +
-        `Stay on this tab or your interview will be terminated.`
-      );
-      setShowTabWarning(true);
+      // Update live transcript with both final and interim results
+      setLiveTranscript(finalTranscriptRef.current + interimTranscript);
+    };
 
-      // Auto-hide after 10 seconds
-      setTimeout(() => {
-        setShowTabWarning(false);
-      }, 10000);
+    recognition.onerror = (event: any) => {
+      console.error('🎤 Speech recognition error:', event.error);
+
+      if (event.error === 'no-speech') {
+        console.log('No speech detected, continuing...');
+      } else if (event.error === 'network') {
+        console.error('Network error in speech recognition');
+      }
+    };
+
+    recognition.onend = () => {
+      console.log('🎤 Speech recognition ended');
+
+      // Restart if we're still recording
+      if (isRecordingRef.current) {
+        console.log('🎤 Restarting speech recognition...');
+        try {
+          recognition.start();
+        } catch (err) {
+          console.error('Failed to restart recognition:', err);
+        }
+      }
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (err) {
+          // Ignore errors on cleanup
+        }
+      }
+    };
+  }, []);
+
+  // Tab switch detection
+  useEffect(() => {
+    if (interviewTerminated || interviewEndedEarlyRef.current) {
+      console.log('⏹️ Interview ended, skipping tab detection');
+      return;
     }
-  } catch (err: any) {
-    console.error('❌ Tab switch recording error:', err);
+
+    console.log('🔍 Setting up tab switch detection...');
+
+    let lastTabSwitchTime = 0;
+    const DEBOUNCE_MS = 2000;
+
+    const handleVisibilityChange = async () => {
+      const now = Date.now();
+
+      if (document.visibilityState === 'hidden') {
+        console.log('🚨 Tab hidden - user switched away');
+
+        if (now - lastTabSwitchTime < DEBOUNCE_MS) {
+          console.log('⏭️ Skipping - too soon after last switch');
+          return;
+        }
+
+        lastTabSwitchTime = now;
+        await recordTabSwitch();
+      } else if (document.visibilityState === 'visible') {
+        console.log('✅ Tab visible - user returned');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    console.log('📊 Initial visibility state:', document.visibilityState);
+
+    return () => {
+      console.log('🧹 Cleaning up tab detection');
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [sessionId, token, API_BASE, interviewTerminated]);
+
+  async function recordTabSwitch() {
+    if (interviewTerminated || interviewEndedEarlyRef.current) {
+      console.log('⏹️ Interview already ended, ignoring tab switch');
+      return;
+    }
+
+    try {
+      console.log('📊 Recording tab switch for session:', sessionId);
+
+      const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/tab-switch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        console.error('❌ Tab switch recording failed:', res.status);
+        return;
+      }
+
+      const data = await res.json();
+
+      console.log('✅ Tab switch recorded:', {
+        count: data.tabSwitches,
+        shouldTerminate: data.shouldTerminate,
+      });
+
+      setTabSwitchCount(data.tabSwitches);
+
+      if (data.shouldTerminate) {
+        console.log('🛑 Terminating interview - too many tab switches');
+        setWarningMessage('❌ Interview terminated: You switched tabs 3 times.');
+        setInterviewTerminated(true);
+        setShowTabWarning(true);
+
+        if (isRecording) {
+          stopRecording();
+        }
+
+        setTimeout(() => {
+          handleTabSwitchTermination();
+        }, 5000);
+      } else {
+        const remaining = 3 - data.tabSwitches;
+        setWarningMessage(
+          `⚠️ Warning: Tab switch detected (${data.tabSwitches}/3)\n\n` +
+            `You have ${remaining} warning${remaining !== 1 ? 's' : ''} remaining. ` +
+            `Stay on this tab or your interview will be terminated.`
+        );
+        setShowTabWarning(true);
+
+        setTimeout(() => {
+          setShowTabWarning(false);
+        }, 10000);
+      }
+    } catch (err: any) {
+      console.error('❌ Tab switch recording error:', err);
+    }
   }
-}
 
   async function handleTabSwitchTermination() {
     console.log('🛑 Terminating interview due to tab switches...');
-    
+
     interviewEndedEarlyRef.current = true;
     isRecordingRef.current = false;
 
-    if (transcriptionIntervalRef.current) {
-    clearInterval(transcriptionIntervalRef.current);
-    transcriptionIntervalRef.current = null;
+    // Stop browser speech recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.error('❌ Error stopping speech recognition:', err);
+      }
     }
-    streamChunksRef.current = [];
+
     audioChunksRef.current = [];
 
     if (isRecording) {
-    console.log('⏹️ Force stopping recording...');
-    stopRecording(); // This should stop the MediaRecorder
+      console.log('⏹️ Force stopping recording...');
+      stopRecording();
     }
+
     if (mediaRecorderRef.current) {
-    try {
-      if (mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        mediaRecorderRef.current.stream?.getTracks().forEach((track) => {
+          console.log('⏹️ Stopping track:', track.label);
+          track.stop();
+        });
+        mediaRecorderRef.current = null;
+      } catch (err) {
+        console.error('❌ Error stopping media recorder:', err);
       }
-      // Stop all tracks
-      mediaRecorderRef.current.stream?.getTracks().forEach(track => {
-        console.log('⏹️ Stopping track:', track.label);
-        track.stop();
-      });
-      mediaRecorderRef.current = null;
-    } catch (err) {
-      console.error('❌ Error stopping media recorder:', err);
     }
-    }
+
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-    try {
-      await audioContextRef.current.close();
-      audioContextRef.current = null;
-    } catch (err) {
-      console.error('❌ Error closing audio context:', err);
+      try {
+        await audioContextRef.current.close();
+        audioContextRef.current = null;
+      } catch (err) {
+        console.error('❌ Error closing audio context:', err);
+      }
     }
-  }
 
     if (animationFrameRef.current) {
-    cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = null;
-  }
-
-  if (transcriptionIntervalRef.current) {
-    clearInterval(transcriptionIntervalRef.current);
-    transcriptionIntervalRef.current = null;
-  }
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
 
     setIsProcessing(true);
     setIsRecording(false);
     setAudioLevel(0);
-    
+
     try {
-    // Mark session as completed
-    await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    console.log('✅ Interview terminated, navigating to results');
-    // 🆕 Navigate to results page
-    navigate(`/results/${sessionId}`);
-  } catch (err) {
-    console.error('❌ Termination failed:', err);
-    // Still navigate to results
-    navigate(`/results/${sessionId}`);
-  }
-}
-  useEffect(() => {
-    console.log('🔍 Browser capabilities:');
-    console.log('  - User Agent:', navigator.userAgent);
-    console.log('  - Is Safari:', isSafari);
-    console.log('  - MediaRecorder:', !!window.MediaRecorder);
-    console.log('  - getUserMedia:', !!navigator.mediaDevices?.getUserMedia);
-
-    if (window.MediaRecorder) {
-      const types = ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm'];
-      console.log('📝 Supported formats:');
-      types.forEach((type) => {
-        console.log(`  - ${type}: ${MediaRecorder.isTypeSupported(type) ? '✅' : '❌'}`);
+      await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
       });
-    }
-  }, [isSafari]);
 
-  // 🆕 Cleanup transcription interval on unmount
-  useEffect(() => {
-    return () => {
-      if (transcriptionIntervalRef.current) {
-        clearInterval(transcriptionIntervalRef.current);
-      }
-    };
-  }, []);
+      console.log('✅ Interview terminated, navigating to results');
+      navigate(`/results/${sessionId}`);
+    } catch (err) {
+      console.error('❌ Termination failed:', err);
+      navigate(`/results/${sessionId}`);
+    }
+  }
 
   function getSupportedMimeType(): string | undefined {
     if (!window.MediaRecorder) {
@@ -414,129 +400,6 @@ async function recordTabSwitch() {
     }
   }
 
-  // 🆕 Transcribe audio chunk for live display
-  // async function transcribeChunk(audioBlob: Blob): Promise<string> {
-  //   try {
-  //     const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
-  //     let extension = 'webm';
-  //     if (mimeType.includes('mp4')) extension = 'm4a';
-  //     else if (mimeType.includes('ogg')) extension = 'ogg';
-
-  //     const formData = new FormData();
-  //     formData.append('audio', audioBlob, `chunk-${Date.now()}.${extension}`);
-  //     formData.append('previousContext', previousContextRef.current);
-
-  //     const res = await fetch(`${API_BASE}/interview/transcribe-chunk`, {
-  //       method: 'POST',
-  //       headers: { Authorization: `Bearer ${token}` },
-  //       body: formData,
-  //     });
-
-  //     if (!res.ok) {
-  //       console.warn('⚠️ Chunk transcription failed:', res.status);
-  //       return '';
-  //     }
-
-  //     const data = await res.json();
-  //     return data.text || '';
-  //   } catch (err) {
-  //     console.error('❌ Chunk transcription error:', err);
-  //     return '';
-  //   }
-  // }
-  async function transcribeChunk(audioBlob: Blob): Promise<string> {
-  try {
-    const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
-    let extension = 'webm';
-    if (mimeType.includes('mp4')) extension = 'm4a';
-    else if (mimeType.includes('ogg')) extension = 'ogg';
-
-    const formData = new FormData();
-    formData.append('audio', audioBlob, `chunk-${Date.now()}.${extension}`);
-    formData.append('previousContext', previousContextRef.current);
-
-    console.log(`🌐 Sending ${audioBlob.size} bytes to backend...`);
-
-    const res = await fetch(`${API_BASE}/interview/transcribe-chunk`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
-
-    if (!res.ok) {
-      console.error('❌ Chunk transcription failed:', res.status, await res.text());
-      return '';
-    }
-
-    const data = await res.json();
-    console.log('✅ Backend response:', data);
-    return data.text || '';
-  } catch (err) {
-    console.error('❌ Chunk transcription error:', err);
-    return '';
-  }
-}
-  // 🆕 Process accumulated chunks for live transcript
-  // async function processLiveTranscript() {
-  //   if (streamChunksRef.current.length === 0) return;
-
-  //   const chunksToProcess = [...streamChunksRef.current];
-  //   streamChunksRef.current = [];
-
-  //   const audioBlob = new Blob(chunksToProcess, { 
-  //     type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
-  //   });
-
-  //   const newText = await transcribeChunk(audioBlob);
-    
-  //   if (newText && isRecordingRef.current) { 
-  //     setLiveTranscript(prev => {
-  //       const updated = prev ? `${prev} ${newText}` : newText;
-  //       previousContextRef.current = updated.split(' ').slice(-50).join(' '); // Keep last 50 words as context
-  //       return updated;
-  //     });
-  //   }
-  // }
-
-  async function processLiveTranscript() {
-  // Check if we have chunks to process
-  if (streamChunksRef.current.length === 0) {
-    console.log('⏭️ No chunks to process yet');
-    return;
-  }
-
-  // IMPORTANT: Don't check isRecordingRef here - process what we have
-  console.log(`📦 Processing ${streamChunksRef.current.length} audio chunks...`);
-
-  const chunksToProcess = [...streamChunksRef.current];
-  streamChunksRef.current = []; // Clear for next batch
-
-  try {
-    const audioBlob = new Blob(chunksToProcess, { 
-      type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
-    });
-
-    console.log(`🎤 Transcribing ${audioBlob.size} bytes...`);
-    const newText = await transcribeChunk(audioBlob);
-    
-    console.log(`✅ Transcribed: "${newText.substring(0, 50)}..."`);
-
-    // Update live transcript if we got text
-    if (newText && newText.trim()) {
-      setLiveTranscript(prev => {
-        const updated = prev ? `${prev} ${newText}` : newText;
-        previousContextRef.current = updated.split(' ').slice(-50).join(' ');
-        console.log(`📝 Live transcript updated: ${updated.length} chars`);
-        return updated;
-      });
-    } else {
-      console.log('⚠️ Empty transcription result');
-    }
-  } catch (err) {
-    console.error('❌ Live transcription error:', err);
-  }
-}
-
   async function fetchNextQuestion() {
     if (interviewEndedEarlyRef.current) {
       console.log('⏹️ Interview ended early, skipping next question');
@@ -545,8 +408,8 @@ async function recordTabSwitch() {
 
     setIsProcessing(true);
     setTranscript('');
-    setLiveTranscript(''); // 🆕 Clear live transcript
-    previousContextRef.current = ''; // 🆕 Reset context
+    setLiveTranscript('');
+    finalTranscriptRef.current = ''; // Reset browser transcript
     setCurrentQuestion('');
     setHint(null);
     setHintError(null);
@@ -577,10 +440,8 @@ async function recordTabSwitch() {
       console.log('✅ Question loaded:', {
         number: data.questionNumber,
         difficulty: data.difficulty,
-        difficultyType: typeof data.difficulty,
         length: data.question?.length,
         hasAudio: !!data.audioBase64,
-        fullData: data,
       });
 
       if (!data.questionNumber) {
@@ -668,82 +529,78 @@ async function recordTabSwitch() {
   }
 
   async function startRecording(qNum?: number) {
-  try {
-    const activeQuestionNumber = qNum ?? questionNumberRef.current;
-    console.log('🎤 Starting recording for question:', activeQuestionNumber);
+    try {
+      const activeQuestionNumber = qNum ?? questionNumberRef.current;
+      console.log('🎤 Starting recording for question:', activeQuestionNumber);
 
-    if (!activeQuestionNumber) {
-      throw new Error('Invalid question number');
-    }
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 44100,
-        channelCount: 1,
-      },
-    });
-
-    // Setup audio analysis
-    audioContextRef.current = new AudioContext();
-    const source = audioContextRef.current.createMediaStreamSource(stream);
-    analyserRef.current = audioContextRef.current.createAnalyser();
-    analyserRef.current.fftSize = 2048;
-    source.connect(analyserRef.current);
-
-    const mimeType = getSupportedMimeType();
-    const options: MediaRecorderOptions = {};
-    if (mimeType) {
-      options.mimeType = mimeType;
-      if (isSafari && mimeType.includes('mp4')) {
-        (options as any).audioBitsPerSecond = 128000;
+      if (!activeQuestionNumber) {
+        throw new Error('Invalid question number');
       }
-    }
 
-    mediaRecorderRef.current = new MediaRecorder(stream, options);
-    audioChunksRef.current = [];
-    streamChunksRef.current = [];
-    previousContextRef.current = '';
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+          channelCount: 1,
+        },
+      });
 
-    // Handle data as it comes in
-    mediaRecorderRef.current.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        console.log('📦 Chunk received:', e.data.size, 'bytes');
-        audioChunksRef.current.push(e.data);
-        streamChunksRef.current.push(e.data); // For live transcription
+      // Setup audio analysis
+      audioContextRef.current = new AudioContext();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 2048;
+      source.connect(analyserRef.current);
+
+      const mimeType = getSupportedMimeType();
+      const options: MediaRecorderOptions = {};
+      if (mimeType) {
+        options.mimeType = mimeType;
+        if (isSafari && mimeType.includes('mp4')) {
+          (options as any).audioBitsPerSecond = 128000;
+        }
       }
-    };
 
-    mediaRecorderRef.current.onstop = handleRecordingStop;
-    mediaRecorderRef.current.onerror = (e: Event) => {
-      console.error('❌ MediaRecorder error:', e);
-      stopRecording();
-    };
+      mediaRecorderRef.current = new MediaRecorder(stream, options);
+      audioChunksRef.current = [];
 
-    // 🔥 CRITICAL: Set refs BEFORE starting recorder
-    setIsRecording(true);
-    isRecordingRef.current = true;
-    setTranscript('');
-    setLiveTranscript('');
-    silenceStartRef.current = null;
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          console.log('📦 Audio chunk received:', e.data.size, 'bytes');
+          audioChunksRef.current.push(e.data);
+        }
+      };
 
-    // Start with 2-second chunks
-    const timeslice = 2000;
-    mediaRecorderRef.current.start(timeslice);
-    console.log(`✅ Recording started with ${timeslice}ms chunks`);
+      mediaRecorderRef.current.onstop = handleRecordingStop;
+      mediaRecorderRef.current.onerror = (e: Event) => {
+        console.error('❌ MediaRecorder error:', e);
+        stopRecording();
+      };
 
-    // 🔥 IMPORTANT: Start transcription interval AFTER first chunk arrives
-    // Give it 2.5 seconds for the first chunk to arrive (timeslice is 2s)
-    setTimeout(() => {
-      if (isRecordingRef.current) {
-        console.log('🎙️ Starting live transcription interval...');
-        transcriptionIntervalRef.current = setInterval(processLiveTranscript, 3000);
+      // 🔥 Set refs BEFORE starting recorder
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      setTranscript('');
+      setLiveTranscript('');
+      finalTranscriptRef.current = ''; // Reset browser transcript
+      silenceStartRef.current = null;
+
+      // 🆕 Start browser speech recognition
+      if (recognitionRef.current) {
+        try {
+          console.log('🎤 Starting browser speech recognition...');
+          recognitionRef.current.start();
+        } catch (err) {
+          console.error('❌ Failed to start speech recognition:', err);
+        }
       }
-    }, 2500);
 
-    detectSilence();
+      mediaRecorderRef.current.start(2000); // 2-second chunks
+      console.log('✅ Recording started with 2000ms chunks');
+
+      detectSilence();
     } catch (err: any) {
       console.error('❌ Recording failed:', err);
 
@@ -794,16 +651,6 @@ async function recordTabSwitch() {
 
       setAudioLevel(average);
 
-      if (Math.random() < 0.1) {
-        console.log(
-          '🔉 Audio level:',
-          average.toFixed(2),
-          silenceStartRef.current
-            ? `(silent for ${((Date.now() - silenceStartRef.current) / 1000).toFixed(1)}s)`
-            : ''
-        );
-      }
-
       const recordingDuration = Date.now() - recordingStartTime;
 
       if (average < SILENCE_THRESHOLD) {
@@ -815,9 +662,9 @@ async function recordTabSwitch() {
 
           if (recordingDuration > MIN_RECORDING_TIME && silenceDuration > SILENCE_DURATION) {
             console.log(
-              `✅ ${SILENCE_DURATION / 1000}s silence detected after ${(recordingDuration / 1000).toFixed(
-                1
-              )}s recording`
+              `✅ ${SILENCE_DURATION / 1000}s silence detected after ${(
+                recordingDuration / 1000
+              ).toFixed(1)}s recording`
             );
             stopRecording();
             return;
@@ -840,12 +687,15 @@ async function recordTabSwitch() {
     console.log('⏹️ Stopping recording...');
     isRecordingRef.current = false;
 
-    // 🆕 Stop live transcription
-    if (transcriptionIntervalRef.current) {
-    clearInterval(transcriptionIntervalRef.current);
-    transcriptionIntervalRef.current = null;
-  }
-  streamChunksRef.current = [];
+    // 🆕 Stop browser speech recognition
+    if (recognitionRef.current) {
+      try {
+        console.log('🎤 Stopping browser speech recognition...');
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.error('❌ Error stopping speech recognition:', err);
+      }
+    }
 
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -962,26 +812,23 @@ async function recordTabSwitch() {
   }
 
   async function completeInterview() {
-  try {
-    await speakText(
-      "Thank you for completing the interview! Your responses have been recorded. Let's review your results."
-    );
+    try {
+      await speakText(
+        "Thank you for completing the interview! Your responses have been recorded. Let's review your results."
+      );
 
-    await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+      await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    console.log('✅ Interview completed, navigating to results');
-    
-    // 🆕 Navigate to results page instead of calling onComplete
-    navigate(`/results/${sessionId}`);
-  } catch (err) {
-    console.error('❌ Complete failed:', err);
-    // Still navigate to results even if completion API fails
-    navigate(`/results/${sessionId}`);
+      console.log('✅ Interview completed, navigating to results');
+      navigate(`/results/${sessionId}`);
+    } catch (err) {
+      console.error('❌ Complete failed:', err);
+      navigate(`/results/${sessionId}`);
+    }
   }
-}
 
   async function handleEndInterview() {
     console.log('🛑 Ending interview early...');
@@ -999,33 +846,31 @@ async function recordTabSwitch() {
       animationFrameRef.current = null;
     }
 
-    // 🆕 Stop live transcription
-    if (transcriptionIntervalRef.current) {
-      clearInterval(transcriptionIntervalRef.current);
-      transcriptionIntervalRef.current = null;
+    // Stop browser speech recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.error('❌ Error stopping speech recognition:', err);
+      }
     }
 
     setIsProcessing(true);
     try {
-    await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    
-    // 🆕 Navigate to results page
-    navigate(`/results/${sessionId}`);
-  } catch (err) {
-    console.error('❌ End interview failed:', err);
-    // Still navigate to results
-    navigate(`/results/${sessionId}`);
+      await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      navigate(`/results/${sessionId}`);
+    } catch (err) {
+      console.error('❌ End interview failed:', err);
+      navigate(`/results/${sessionId}`);
+    }
   }
-}
-  
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
-      {/* <TabSwitchTester /> */}
-    
       {isSafari && (
         <div
           style={{
@@ -1039,7 +884,6 @@ async function recordTabSwitch() {
           ⚠️ <strong>Safari:</strong> For best results, use Chrome/Firefox/Edge.
         </div>
       )}
-
       {showTabWarning && (
         <div
           style={{
@@ -1076,15 +920,7 @@ async function recordTabSwitch() {
               }}>
                 {warningMessage}
               </p>
-              {!interviewTerminated && (
-                <p style={{ 
-                  margin: 0, 
-                  fontSize: 13,
-                  color: '#6b7280',
-                }}>
-                  Remaining warnings: {Math.max(0, 2 - tabSwitchCount)}
-                </p>
-              )}
+              
             </div>
             {!interviewTerminated && (
               <button
