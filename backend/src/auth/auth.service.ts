@@ -1,4 +1,3 @@
-// src/auth/auth.service.ts
 import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcryptjs';
@@ -42,7 +41,7 @@ export class AuthService {
         interviewType: '—',
         yearsOfExperience: '—',
         skills: [],
-        totalQuestions: 5, // 🆕 Add default
+        totalQuestions: 5, // default 5 questions 
       };
     }
 
@@ -53,8 +52,8 @@ export class AuthService {
       role: user.role ?? '—',
       interviewType: user.interviewType ?? '—',
       yearsOfExperience: user.yearsOfExperience ?? '—',
-      skills: user.skills ?? [], // 🆕 Add skills
-      totalQuestions: user.totalQuestions ?? 5, // 🆕 Add totalQuestions with default
+      skills: user.skills ?? [], 
+      totalQuestions: user.totalQuestions ?? 5,
     };
   }
 

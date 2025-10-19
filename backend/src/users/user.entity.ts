@@ -5,7 +5,6 @@ export class User {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id!: string;
 
-  // Your table uses TEXT UNIQUE; keep `type: 'text'` to avoid ALTERs
   @Column({ name: 'email', type: 'text', unique: true })
   email!: string;
 

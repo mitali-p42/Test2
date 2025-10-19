@@ -1,4 +1,3 @@
-// src/interview-profile/interview-profile.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,7 +14,6 @@ export class InterviewProfileService {
     return await this.repo.findOne({ where: { userId } });
   }
 
-  // 🆕 ADD THIS METHOD to create/update profile with total questions
   async upsertProfile(
     userId: string,
     email: string,
@@ -24,7 +22,7 @@ export class InterviewProfileService {
       interviewType?: string;
       yearsOfExperience?: number;
       skills?: string[];
-      totalQuestions?: number; // 🆕 Add this parameter
+      totalQuestions?: number; 
     }
   ) {
     const existing = await this.repo.findOne({ where: { userId } });
@@ -51,7 +49,7 @@ export class InterviewProfileService {
         interviewType: data.interviewType,
         yearsOfExperience: data.yearsOfExperience,
         skills: data.skills || [],
-        totalQuestions: data.totalQuestions ?? 5, // 🆕 Default to 5
+        totalQuestions: data.totalQuestions ?? 5, // Default to 5
       });
       return this.repo.save(profile);
     }

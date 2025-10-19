@@ -1,4 +1,3 @@
-// frontend/src/pages/Home.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +7,7 @@ type Profile = {
   interviewType: string | '—';
   yearsOfExperience: number | string | '—';
   skills?: string[];
-  totalQuestions?: number; // 🆕 Add this
+  totalQuestions?: number;
 };
 
 function getEmailFromToken(token: string | null): string | undefined {
@@ -30,7 +29,7 @@ export default function Home() {
     interviewType: '—',
     yearsOfExperience: '—',
     skills: [],
-    totalQuestions: 5, // 🆕 Default value
+    totalQuestions: 5, // Default value of questions
   });
   
   const [loading, setLoading] = useState(false);
@@ -118,7 +117,7 @@ export default function Home() {
             interviewType: d.interviewType ?? d.interview_type ?? '—',
             yearsOfExperience: d.yearsOfExperience ?? d.years_of_experience ?? '—',
             skills: d.skills ?? [],
-            totalQuestions: d.totalQuestions ?? 5, // 🆕 Fetch from API
+            totalQuestions: d.totalQuestions ?? 5,
           });
         }
       } catch (err) {
@@ -147,7 +146,7 @@ export default function Home() {
 
       stream.getTracks().forEach(track => track.stop());
       setPermissionState('granted');
-      navigate('/interview', { state: { profile } }); // 🆕 Pass profile with totalQuestions
+      navigate('/interview', { state: { profile } });
     } catch (err: any) {
       let errorMessage = 'Failed to access microphone';
       let instructions = '';

@@ -3,7 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Interview from './pages/Interview'; 
-import Results from './pages/Results'; // 🆕 Add Results page
+import Results from './pages/Results';
 import { useAuth } from './auth/AuthContext';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {

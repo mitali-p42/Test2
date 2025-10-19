@@ -1,4 +1,3 @@
-// src/interview-profile/interview-profile.controller.ts
 import { Controller, Get, Post, Patch, Body, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { InterviewProfileService } from './interview-profile.service';
@@ -19,11 +18,10 @@ export class InterviewProfileController {
       interviewType: profile?.interviewType ?? '—',
       yearsOfExperience: profile?.yearsOfExperience ?? '—',
       skills: profile?.skills ?? [],
-      totalQuestions: profile?.totalQuestions ?? 5, // 🆕 Include in response
+      totalQuestions: profile?.totalQuestions ?? 5, 
     };
   }
 
-  // 🆕 ADD THIS ENDPOINT to create/update profile
   @UseGuards(JwtAuthGuard)
   @Post('setup')
   async setupProfile(
@@ -33,7 +31,7 @@ export class InterviewProfileController {
       interviewType: string;
       yearsOfExperience: number;
       skills?: string[];
-      totalQuestions?: number; // 🆕 Accept totalQuestions
+      totalQuestions?: number;
     }
   ) {
     // Validate totalQuestions range
@@ -49,7 +47,7 @@ export class InterviewProfileController {
         interviewType: body.interviewType,
         yearsOfExperience: body.yearsOfExperience,
         skills: body.skills,
-        totalQuestions: validatedTotal, // 🆕 Pass to service
+        totalQuestions: validatedTotal, 
       }
     );
 
@@ -65,7 +63,6 @@ export class InterviewProfileController {
     };
   }
 
-  // 🆕 ADD THIS ENDPOINT to update just the totalQuestions
   @UseGuards(JwtAuthGuard)
   @Patch('total-questions')
   async updateTotalQuestions(

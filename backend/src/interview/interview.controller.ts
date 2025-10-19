@@ -1,4 +1,3 @@
-// backend/src/interview/interview.controller.ts
 import {
   Controller,
   Post,
@@ -28,7 +27,6 @@ type AuthedRequest = { user: RequestUser };
 export class InterviewController {
   constructor(private readonly service: InterviewService) {}
 
-  // 🔥 UPDATED: Accept totalQuestions
   @Post('sessions')
   async createSession(
     @Req() req: AuthedRequest,
@@ -37,7 +35,7 @@ export class InterviewController {
       interviewType: string; 
       yearsOfExperience?: number;
       skills?: string[];
-      totalQuestions?: number; // 🆕 ADD THIS
+      totalQuestions?: number; 
     },
   ) {
     return this.service.createSession(
@@ -46,7 +44,7 @@ export class InterviewController {
       body.interviewType,
       body.yearsOfExperience,
       body.skills,
-      body.totalQuestions || 5, // 🆕 PASS TO SERVICE
+      body.totalQuestions || 5,
     );
   }
 

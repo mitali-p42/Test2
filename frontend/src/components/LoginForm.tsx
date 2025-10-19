@@ -1,4 +1,3 @@
-// src/components/LoginForm.tsx
 import React from 'react';
 import '../styles/auth.css';
 

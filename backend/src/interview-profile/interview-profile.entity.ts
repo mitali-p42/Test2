@@ -1,4 +1,3 @@
-// src/interview-profile/interview-profile.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -38,7 +37,6 @@ export class InterviewProfile {
   })
   yearsOfExperience!: number | null;
 
-  // 🆕 ADD THIS FIELD
   @Column({ 
     name: 'total_questions', 
     type: 'int', 

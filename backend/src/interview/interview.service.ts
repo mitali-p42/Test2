@@ -1,4 +1,3 @@
-// backend/src/interview/interview.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,14 +17,13 @@ export class InterviewService {
 
   /** -------------------- Sessions -------------------- */
 
-  // 🔥 UPDATED: Accept totalQuestions parameter
   async createSession(
     userId: string,
     role: string,
     interviewType: string,
     yearsOfExperience?: number,
     skills?: string[],
-    totalQuestions: number = 5, // 🆕 ADD THIS PARAMETER
+    totalQuestions: number = 5, 
   ) {
     // Validate and clamp total questions
     const validatedTotal = Math.min(Math.max(totalQuestions, 1), 20);
@@ -36,7 +34,7 @@ export class InterviewService {
       interviewType,
       skills: skills || [],
       status: InterviewStatus.PENDING,
-      totalQuestions: validatedTotal, // 🆕 USE CUSTOM VALUE
+      totalQuestions: validatedTotal, 
       currentQuestionIndex: 0,
     });
     
@@ -147,7 +145,7 @@ export class InterviewService {
     const session = await this.getSession(sessionId);
     const nextNumber = session.currentQuestionIndex + 1;
 
-    // 🔥 USE SESSION'S TOTAL QUESTIONS
+    // USE SESSION'S TOTAL QUESTIONS
     if (nextNumber > session.totalQuestions) {
       throw new Error('Interview completed');
     }

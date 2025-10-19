@@ -1,4 +1,3 @@
-// frontend/src/pages/Interview.tsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import VoiceInterview from '../components/VoiceInterview';
@@ -8,7 +7,7 @@ type Profile = {
   interviewType: string;
   yearsOfExperience: number | string;
   skills?: string[];
-  totalQuestions?: number; // 🆕 Add this field
+  totalQuestions?: number;
 };
 
 export default function Interview() {
@@ -48,7 +47,7 @@ export default function Interview() {
             interviewType: profile.interviewType,
             yearsOfExperience: profile.yearsOfExperience,
             skills: profile.skills || [],
-            totalQuestions: profile.totalQuestions || 5, // 🆕 Pass totalQuestions to backend
+            totalQuestions: profile.totalQuestions || 5,
           }),
         });
 
@@ -140,11 +139,10 @@ export default function Interview() {
   );
 }
 
-/* 🎨 Simple inline styles for a light, modern look */
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: '100vh',
-    backgroundColor: '#e0f2feff', // light blue background
+    backgroundColor: '#e0f2feff',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'flex-start',

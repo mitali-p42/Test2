@@ -1,4 +1,3 @@
-// backend/src/interview/interview-session.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -44,7 +43,7 @@ export class InterviewSession {
   @Column({ name: 'total_questions', type: 'int', default: 5 })
   totalQuestions!: number;
 
-  // 🆕 Tab switch tracking
+  // Tab switch tracking
   @Column({ name: 'tab_switches', type: 'int', default: 0 })
   tabSwitches!: number;
 

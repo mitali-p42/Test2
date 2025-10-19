@@ -1,4 +1,3 @@
-// backend/src/interview/ai.service.ts
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Groq from 'groq-sdk';
@@ -6,7 +5,6 @@ import OpenAI from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Enhanced Evaluation Result Type
 export interface DetailedEvaluation {
   overallScore: number;
   technicalAccuracy: number;
@@ -83,7 +81,7 @@ export class AIService {
     this.openai = new OpenAI({ apiKey: openaiKey || 'dummy' });
   }
 
-  // 🆕 Helper: Safe JSON parsing with fallback
+  // Safe JSON parsing with fallback
   private safeJsonParse<T>(text: string, fallback: T): T {
     try {
       // Try to extract JSON from markdown code blocks
@@ -244,7 +242,7 @@ async transcribeAudioChunk(
 
     fs.unlinkSync(tempPath);
 
-    // ✅ Cast the runtime shape to access segments safely
+    // Cast the runtime shape to access segments safely
     const t = (transcription as unknown) as GroqVerboseTranscription;
 
     return {
@@ -255,54 +253,6 @@ async transcribeAudioChunk(
     return { text: '', confidence: 0 };
   }
 }
-
-// async transcribeAudioChunk(
-//   audioChunk: Buffer, 
-//   filename: string = 'chunk.webm',
-//   previousContext: string = ''
-// ): Promise<{ text: string; confidence?: number }> {
-//   try {
-//     const tempPath = path.join('/tmp', filename);
-//     fs.writeFileSync(tempPath, audioChunk);
-
-//     const transcription = await this.groq.audio.transcriptions.create({
-//       file: fs.createReadStream(tempPath),
-//       model: 'whisper-large-v3-turbo',
-//       language: 'en',
-//       response_format: 'verbose_json',
-//       temperature: 0.0,
-//       prompt: previousContext, // Use previous context for better continuity
-//     });
-
-//     fs.unlinkSync(tempPath);
-//     const t = transcription as unknown as GroqVerboseTranscription;
-
-//     const t = transcription as unknown as GroqVerboseTranscription;
-
-//     const result = {
-//       text: (typeof transcription === 'string' ? transcription : (t.text ?? '')),
-//       confidence: t.segments?.[0]?.avg_logprob, // may be undefined; that's fine
-//     };
-
-//     return result;
-//   } catch (error: any) {
-//     console.error('❌ Chunk transcription error:', error.message);
-//     return { text: '', confidence: 0 };
-//   }
-// }
-  //   const result = typeof transcription === 'string' 
-  //     ? { text: transcription, confidence: undefined }
-  //     : { 
-  //         text: transcription.text || '', 
-  //         confidence: transcription.segments?.[0]?.avg_logprob 
-  //       };
-
-  //   return result;
-  // } catch (error: any) {
-  //   console.error('❌ Chunk transcription error:', error.message);
-  //   return { text: '', confidence: 0 };
-  // }
-
   async generateQuestion(
     role: string,
     interviewType: string,
@@ -314,7 +264,7 @@ async transcribeAudioChunk(
       const category = this.getQuestionCategory(questionNumber);
       const starter = this.getRandomStarter(category);
       
-      // 🆕 Determine difficulty based on experience level
+      // Determine difficulty based on experience level
       const experience = Number(yearsOfExperience) || 0;
       let targetDifficulty: 'easy' | 'medium' | 'hard';
       
@@ -383,7 +333,7 @@ Generate ONE clear, focused question (no numbering or preamble):`;
         };
       }
       
-      // 🆕 Verify difficulty of generated question
+      // Verify difficulty of generated question
       const verifiedDifficulty = await this.verifyQuestionDifficulty(
         question,
         role,
@@ -406,7 +356,6 @@ Generate ONE clear, focused question (no numbering or preamble):`;
       };
     }
   }
-  // Add this new method after generateQuestion
   private extractTestedSkills(question: string, availableSkills: string[]): string[] {
   if (!availableSkills || availableSkills.length === 0) {
     return [];
@@ -441,7 +390,6 @@ Generate ONE clear, focused question (no numbering or preamble):`;
   return testedSkills;
 }
 
-  // 🆕 Add this new method right after generateQuestion
   private async verifyQuestionDifficulty(
     question: string,
     role: string,

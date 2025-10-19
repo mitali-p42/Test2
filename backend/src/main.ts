@@ -5,14 +5,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 
-// 👇 ADD THESE
 import { DataSource } from 'typeorm';
 import { User } from './users/user.entity';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Built-in CORS (no cors package needed)
   app.enableCors({
     origin: ['http://localhost:5173'],
     credentials: true,
@@ -20,7 +18,6 @@ async function bootstrap() {
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
-  // 👇 RUNTIME CHECK: what does TypeORM think the columns are?
   const dataSource = app.get(DataSource);
   const usersMeta = dataSource.getMetadata(User);
   console.log(

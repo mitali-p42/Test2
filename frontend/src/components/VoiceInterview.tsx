@@ -1,4 +1,3 @@
-// frontend/src/components/VoiceInterview.tsx (Browser Speech Recognition)
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -78,7 +77,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const silenceStartRef = useRef<number | null>(null);
   const interviewEndedEarlyRef = useRef(false);
 
-  // 🆕 Browser Speech Recognition refs
+  // Browser Speech Recognition refs
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef<string>('');
 
@@ -97,7 +96,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     });
   }, [currentDifficulty, questionNumber, isProcessing, isRecording]);
 
-  // 🆕 Initialize Browser Speech Recognition
+  // Initialize Browser Speech Recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -595,7 +594,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       finalTranscriptRef.current = ''; // Reset browser transcript
       silenceStartRef.current = null;
 
-      // 🆕 Start browser speech recognition
+      // Start browser speech recognition
       if (recognitionRef.current) {
         try {
           console.log('🎤 Starting browser speech recognition...');
@@ -695,7 +694,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     console.log('⏹️ Stopping recording...');
     isRecordingRef.current = false;
 
-    // 🆕 Stop browser speech recognition
+    // Stop browser speech recognition
     if (recognitionRef.current) {
       try {
         console.log('🎤 Stopping browser speech recognition...');

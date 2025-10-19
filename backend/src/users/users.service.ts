@@ -1,4 +1,3 @@
-// src/users/users.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -21,7 +20,6 @@ export class UsersService {
     return this.repo.save(user);
   }
 
-  // ✅ Updated to include totalQuestions
   async findByIdWithProfile(id: string) {
     return this.repo
       .createQueryBuilder('u')
@@ -34,8 +32,8 @@ export class UsersService {
         'ip.role AS role',
         'ip.interview_type AS "interviewType"',
         'ip.years_of_experience AS "yearsOfExperience"',
-        'ip.skills AS skills', // 🆕 Add skills
-        'ip.total_questions AS "totalQuestions"', // 🆕 Add totalQuestions
+        'ip.skills AS skills', 
+        'ip.total_questions AS "totalQuestions"',
       ])
       .getRawOne<{
         id: string;
@@ -45,7 +43,7 @@ export class UsersService {
         interviewType: string | null;
         yearsOfExperience: number | null;
         skills: string[] | null;
-        totalQuestions: number | null; // 🆕 Add to type
+        totalQuestions: number | null; 
       }>();
   }
 }

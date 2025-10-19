@@ -1,4 +1,3 @@
-// src/pages/Login.tsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -38,7 +37,6 @@ export default function Login() {
           msg = err.message;
         }
       } catch {
-        /* ignore */
       }
       setError(msg);
     } finally {
