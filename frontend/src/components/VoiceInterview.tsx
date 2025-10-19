@@ -16,6 +16,7 @@ type QuestionHint = {
   examples?: string[];
   keyTerms?: string[];
 };
+
 // Typewriter component
 function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) {
   const [displayedText, setDisplayedText] = useState('');
@@ -29,10 +30,10 @@ function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) 
   useEffect(() => {
     if (currentIndex < text.length) {
       const timeout = setTimeout(() => {
-        setDisplayedText(prev => prev + text[currentIndex]);
-        setCurrentIndex(prev => prev + 1);
+        setDisplayedText((prev) => prev + text[currentIndex]);
+        setCurrentIndex((prev) => prev + 1);
       }, speed);
-      
+
       return () => clearTimeout(timeout);
     }
   }, [currentIndex, text, speed]);
@@ -56,7 +57,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [currentDifficulty, setCurrentDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
   const [loadingHint, setLoadingHint] = useState(false);
   const [hintError, setHintError] = useState<string | null>(null);
-  const [hint, setHint] = useState<QuestionHint | null>(null); //
+  const [hint, setHint] = useState<QuestionHint | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -65,21 +67,20 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const animationFrameRef = useRef<number | null>(null);
   const questionNumberRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
-  
-  // 🆕 Flag to track if interview was ended early
   const interviewEndedEarlyRef = useRef(false);
 
   const token = localStorage.getItem('token');
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
   useEffect(() => {
     console.log('🎚️ Difficulty state changed:', {
       currentDifficulty,
       questionNumber,
       isProcessing,
       isRecording,
-      shouldShowHint: currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing
+      shouldShowHint: currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing,
     });
   }, [currentDifficulty, questionNumber, isProcessing, isRecording]);
 
@@ -89,16 +90,11 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     console.log('  - Is Safari:', isSafari);
     console.log('  - MediaRecorder:', !!window.MediaRecorder);
     console.log('  - getUserMedia:', !!navigator.mediaDevices?.getUserMedia);
-    
+
     if (window.MediaRecorder) {
-      const types = [
-        'audio/mp4',
-        'audio/mp4;codecs=mp4a.40.2',
-        'audio/webm;codecs=opus',
-        'audio/webm',
-      ];
+      const types = ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm'];
       console.log('📝 Supported formats:');
-      types.forEach(type => {
+      types.forEach((type) => {
         console.log(`  - ${type}: ${MediaRecorder.isTypeSupported(type) ? '✅' : '❌'}`);
       });
     }
@@ -131,7 +127,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   async function speakText(text: string): Promise<void> {
     try {
       console.log('🔊 Generating speech:', text);
-      
+
       const res = await fetch(`${API_BASE}/interview/tts`, {
         method: 'POST',
         headers: {
@@ -148,8 +144,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       const audioBlob = await res.blob();
       const audio = new Audio(URL.createObjectURL(audioBlob));
-      
-      return new Promise((resolve, reject) => {
+
+      return new Promise((resolve) => {
         audio.onended = () => {
           console.log('✅ Speech finished');
           resolve();
@@ -169,7 +165,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   }
 
   async function fetchNextQuestion() {
-    // 🆕 Check if interview was ended early
     if (interviewEndedEarlyRef.current) {
       console.log('⏹️ Interview ended early, skipping next question');
       return;
@@ -179,16 +174,16 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     setTranscript('');
     setCurrentQuestion('');
     setHint(null);
-    setHintError(null); // 🆕 Reset hint error
+    setHintError(null);
     setCurrentDifficulty(null);
-    
+
     try {
       console.log('🎯 Fetching question for session:', sessionId);
-      
+
       if (questionNumberRef.current > 0) {
         await speakText("Great answer! Let's move on to the next question.");
       }
-      
+
       const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/next-question`, {
         method: 'POST',
         headers: {
@@ -203,14 +198,14 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       }
 
       const data = await res.json();
-      
+
       console.log('✅ Question loaded:', {
         number: data.questionNumber,
         difficulty: data.difficulty,
         difficultyType: typeof data.difficulty,
         length: data.question?.length,
         hasAudio: !!data.audioBase64,
-        fullData: data
+        fullData: data,
       });
 
       if (!data.questionNumber) {
@@ -219,48 +214,43 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       setQuestionNumber(data.questionNumber);
       questionNumberRef.current = data.questionNumber;
-      setCurrentDifficulty(data.difficulty || null);
-      const difficulty = data.difficulty as 'easy' | 'medium' | 'hard' | null;
-      console.log('🎚️ Setting difficulty:', difficulty);
-      setCurrentDifficulty(difficulty);
 
-      setTimeout(() => {
-        console.log('🎚️ Difficulty after state update:', difficulty);
-      }, 100);
+      const difficulty = (data.difficulty as 'easy' | 'medium' | 'hard') || null;
+      setCurrentDifficulty(difficulty);
 
       if (data.questionNumber === 1) {
         await speakText("Great! Let's begin with the first question.");
       }
 
-
       try {
-        const audioBuffer = Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0));
+        const audioBuffer = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
         const blob = new Blob([audioBuffer], { type: 'audio/mp3' });
         const audio = new Audio(URL.createObjectURL(blob));
-        
+
         audio.addEventListener('play', () => {
           console.log('🔊 Audio started, beginning typewriter effect');
           setTimeout(() => setCurrentQuestion(data.question), 100);
         });
 
         audio.addEventListener('ended', () => {
-        console.log('🔊 Audio finished, setting processing to false');
-        setIsProcessing(false); // 👈 ADD THIS LINE
-        console.log('🔊 Starting recording in 3000ms (3 seconds)');
-        setTimeout(() => startRecording(data.questionNumber), 3000);
-         });
-        
+          console.log('🔊 Audio finished, setting processing to false');
+          setIsProcessing(false);
+          console.log('🔊 Starting recording in 3000ms (3 seconds)');
+          setTimeout(() => startRecording(data.questionNumber), 3000);
+        });
+
         audio.addEventListener('error', () => {
           console.error('❌ Audio error, starting recording anyway');
           setCurrentQuestion(data.question);
-          setIsProcessing(false); // 👈 ADD THIS LINE
+          setIsProcessing(false);
           setTimeout(() => startRecording(data.questionNumber), 3000);
         });
-        
+
         await audio.play();
       } catch (audioErr) {
         console.error('❌ Audio error:', audioErr);
         setCurrentQuestion(data.question);
+        setIsProcessing(false);
         setTimeout(() => startRecording(data.questionNumber), 3000);
       }
     } catch (err: any) {
@@ -269,43 +259,45 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       setIsProcessing(false);
     }
   }
+
   async function requestHint() {
-  if (!questionNumber) return;
-  
-  setLoadingHint(true);
-  setHintError(null);
-  
-  try {
-    const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/hint`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ questionNumber }),
-    });
+    if (!questionNumber) return;
 
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || 'Failed to get hint');
+    setLoadingHint(true);
+    setHintError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/interview/sessions/${sessionId}/hint`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ questionNumber }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to get hint');
+      }
+
+      const hintData = await res.json();
+      console.log('💡 Hint received:', hintData);
+      setHint(hintData);
+    } catch (err: any) {
+      console.error('❌ Hint request failed:', err);
+      setHintError(err.message);
+    } finally {
+      setLoadingHint(false);
     }
+  }
 
-    const hintData = await res.json();
-    console.log('💡 Hint received:', hintData);
-    setHint(hintData);
-  } catch (err: any) {
-    console.error('❌ Hint request failed:', err);
-    setHintError(err.message);
-  } finally {
-    setLoadingHint(false);
-  }
-  }
   async function startRecording(qNum?: number) {
     try {
       const activeQuestionNumber = qNum ?? questionNumberRef.current;
-      
+
       console.log('🎤 Starting recording for question:', activeQuestionNumber);
-      
+
       if (!activeQuestionNumber) {
         throw new Error('Invalid question number');
       }
@@ -314,16 +306,16 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         throw new Error('Audio recording not supported');
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: 44100,
           channelCount: 1,
-        }
+        },
       });
-      
+
       audioContextRef.current = new AudioContext();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
@@ -335,10 +327,10 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       if (mimeType) {
         options.mimeType = mimeType;
         if (isSafari && mimeType.includes('mp4')) {
-          options.audioBitsPerSecond = 128000;
+          (options as any).audioBitsPerSecond = 128000;
         }
       }
-      
+
       console.log('📹 MediaRecorder options:', options);
       mediaRecorderRef.current = new MediaRecorder(stream, options);
       audioChunksRef.current = [];
@@ -351,7 +343,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       };
 
       mediaRecorderRef.current.onstop = handleRecordingStop;
-      
+
       mediaRecorderRef.current.onerror = (e: Event) => {
         console.error('❌ MediaRecorder error:', e);
         stopRecording();
@@ -359,7 +351,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
       const timeslice = isSafari ? 1000 : 100;
       mediaRecorderRef.current.start(timeslice);
-      
+
       setIsRecording(true);
       isRecordingRef.current = true;
       setTranscript('🎤 Recording... (speak clearly)');
@@ -370,20 +362,21 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       detectSilence();
     } catch (err: any) {
       console.error('❌ Recording failed:', err);
-      
+
       let userMessage = 'Failed to start recording';
       if (err.name === 'NotAllowedError') {
-        userMessage = '❌ Microphone blocked!\n\n1. Click the 🔒 in address bar\n2. Allow microphone\n3. Refresh page';
+        userMessage =
+          '❌ Microphone blocked!\n\n1. Click the 🔒 in address bar\n2. Allow microphone\n3. Refresh page';
       } else if (err.name === 'NotFoundError') {
         userMessage = '❌ No microphone detected. Please connect one.';
       } else if (err.name === 'NotSupportedError') {
-        userMessage = isSafari 
+        userMessage = isSafari
           ? '⚠️ Limited Safari support. Use Chrome/Firefox for best results.'
           : '❌ Recording not supported. Use Chrome/Firefox/Edge.';
       } else {
         userMessage = `Microphone error: ${err.message}`;
       }
-      
+
       alert(userMessage);
       setIsProcessing(false);
     }
@@ -394,7 +387,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
     const bufferLength = analyserRef.current.fftSize;
     const dataArray = new Uint8Array(bufferLength);
-    
+
     const SILENCE_THRESHOLD = 5;
     const SILENCE_DURATION = 6000;
     const MIN_RECORDING_TIME = 2000;
@@ -418,8 +411,13 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       setAudioLevel(average);
 
       if (Math.random() < 0.1) {
-        console.log('🔉 Audio level:', average.toFixed(2), 
-                    silenceStartRef.current ? `(silent for ${((Date.now() - silenceStartRef.current) / 1000).toFixed(1)}s)` : '');
+        console.log(
+          '🔉 Audio level:',
+          average.toFixed(2),
+          silenceStartRef.current
+            ? `(silent for ${((Date.now() - silenceStartRef.current) / 1000).toFixed(1)}s)`
+            : ''
+        );
       }
 
       const recordingDuration = Date.now() - recordingStartTime;
@@ -430,9 +428,13 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           console.log('🔇 Silence detected, starting timer...');
         } else {
           const silenceDuration = Date.now() - silenceStartRef.current;
-          
+
           if (recordingDuration > MIN_RECORDING_TIME && silenceDuration > SILENCE_DURATION) {
-            console.log(`✅ ${SILENCE_DURATION/1000}s silence detected after ${(recordingDuration/1000).toFixed(1)}s recording`);
+            console.log(
+              `✅ ${SILENCE_DURATION / 1000}s silence detected after ${(recordingDuration / 1000).toFixed(
+                1
+              )}s recording`
+            );
             stopRecording();
             return;
           }
@@ -453,7 +455,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   function stopRecording() {
     console.log('⏹️ Stopping recording...');
     isRecordingRef.current = false;
-    
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -461,22 +463,21 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
     }
-    
+
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close();
       audioContextRef.current = null;
     }
-    
+
     setIsRecording(false);
     setAudioLevel(0);
   }
 
   async function handleRecordingStop() {
     console.log('🛑 Processing answer...');
-    
-    // 🆕 If interview ended early, skip processing
+
     if (interviewEndedEarlyRef.current) {
       console.log('⏹️ Interview ended early, skipping answer processing');
       return;
@@ -488,15 +489,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
     const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
     const currentQuestionNumber = questionNumberRef.current;
-    
+
     console.log('📤 Submitting:', {
       sessionId,
       questionNumber: currentQuestionNumber,
       size: audioBlob.size,
       mimeType,
-      chunks: audioChunksRef.current.length
+      chunks: audioChunksRef.current.length,
     });
-    
+
     if (!currentQuestionNumber) {
       alert('Error: Invalid question. Please refresh.');
       setIsProcessing(false);
@@ -508,11 +509,11 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       setIsProcessing(false);
       return;
     }
-    
+
     let extension = 'webm';
     if (mimeType.includes('mp4')) extension = 'm4a';
     else if (mimeType.includes('ogg')) extension = 'ogg';
-    
+
     const formData = new FormData();
     formData.append('audio', audioBlob, `answer.${extension}`);
     formData.append('questionNumber', currentQuestionNumber.toString());
@@ -528,27 +529,26 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       if (!res.ok) {
         const errorText = await res.text();
         console.error('❌ Backend error:', res.status, errorText);
-        
+
         if (res.status === 404) {
           alert(`Question not found. Please refresh and restart.`);
         } else {
           alert(`Failed (${res.status}): ${errorText}`);
         }
-        
+
         setIsProcessing(false);
         return;
       }
 
       const data = await res.json();
       console.log('✅ Answer processed:', data);
-      
+
       setTranscript(data.transcript || 'No transcript');
 
       if (data.evaluation) {
         console.log('📊 Evaluation:', data.evaluation);
       }
 
-      // 🆕 Check again before proceeding to next question
       setTimeout(() => {
         if (interviewEndedEarlyRef.current) {
           console.log('⏹️ Interview ended early, not proceeding to next question');
@@ -572,13 +572,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
   async function completeInterview() {
     try {
-      await speakText("Thank you for completing the interview! Your responses have been recorded. We'll review them and get back to you soon.");
-      
+      await speakText(
+        "Thank you for completing the interview! Your responses have been recorded. We'll review them and get back to you soon."
+      );
+
       await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       console.log('✅ Interview completed');
       onComplete();
     } catch (err) {
@@ -589,73 +591,69 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
   async function handleEndInterview() {
     console.log('🛑 Ending interview early...');
-    
-    // 🆕 Set flag FIRST to prevent any further processing
+
     interviewEndedEarlyRef.current = true;
-    
     setShowEndConfirm(false);
-    
-    // Stop recording if active
+
     if (isRecording) {
       console.log('⏹️ Stopping active recording...');
       stopRecording();
     }
-    
-    // Cancel any pending timeouts/animations
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
-    
+
     setIsProcessing(true);
     await completeInterview();
   }
+
   console.log('🎨 Rendering with:', {
     currentDifficulty,
     questionNumber,
     isProcessing,
     isRecording,
-    showHintSection: currentDifficulty === 'hard' && questionNumber > 0
+    showHintSection: currentDifficulty === 'hard' && questionNumber > 0,
   });
-
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
       {isSafari && (
-        <div style={{ 
-          marginBottom: 16, 
-          padding: 12, 
-          background: '#fef3c7', 
-          border: '1px solid #fbbf24',
-          borderRadius: 8,
-        }}>
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            background: '#fef3c7',
+            border: '1px solid #fbbf24',
+            borderRadius: 8,
+          }}
+        >
           ⚠️ <strong>Safari:</strong> For best results, use Chrome/Firefox/Edge.
         </div>
       )}
 
       {questionNumber > 0 && (
-        <div style={{ 
-          marginBottom: 16, 
-          padding: 8, 
-          background: '#f0f0f0', 
-          borderRadius: 4,
-          fontSize: 12,
-          fontFamily: 'monospace'
-        }}>
-          DEBUG: difficulty={currentDifficulty || 'null'} | 
-          qNum={questionNumber} | 
-          processing={isProcessing ? 'yes' : 'no'} | 
-          recording={isRecording ? 'yes' : 'no'}
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 8,
+            background: '#f0f0f0',
+            borderRadius: 4,
+            fontSize: 12,
+            fontFamily: 'monospace',
+          }}
+        >
+          {/* DEBUG: difficulty={currentDifficulty || 'null'} | qNum={questionNumber} | processing=
+          {isProcessing ? 'yes' : 'no'} | recording={isRecording ? 'yes' : 'no'} */}
         </div>
       )}
 
       <div style={{ marginBottom: 24, padding: 16, background: '#f3f4f6', borderRadius: 8 }}>
         {questionNumber > 0 && (
-          <h2 style={{ margin: 0, marginBottom: 12 }}>
-            Question {questionNumber} of 5
-          </h2>
+          <h2 style={{ margin: 0, marginBottom: 12 }}>Question {questionNumber} of 5</h2>
         )}
-        
+
         {currentQuestion ? (
           <p style={{ fontSize: 18, lineHeight: 1.6, margin: '16px 0', minHeight: 60 }}>
             <TypewriterText key={currentQuestion} text={currentQuestion} speed={50} />
@@ -666,142 +664,48 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           </p>
         )}
       </div>
+
       {currentDifficulty && questionNumber > 0 && (
-      <div style={{ 
-        marginBottom: 16, 
-        textAlign: 'center',
-      }}>
-        <span style={{
-          display: 'inline-block',
-          padding: '4px 12px',
-          borderRadius: 12,
-          fontSize: 12,
-          fontWeight: 600,
-          background: 
-            currentDifficulty === 'easy' ? '#d1fae5' : 
-            currentDifficulty === 'medium' ? '#fef3c7' : 
-            '#fee2e2',
-          color: 
-            currentDifficulty === 'easy' ? '#065f46' : 
-            currentDifficulty === 'medium' ? '#92400e' : 
-            '#991b1b',
-        }}>
-          {currentDifficulty === 'easy' ? '🟢 Easy' : 
-           currentDifficulty === 'medium' ? '🟡 Medium' : 
-           '🔴 Hard'}
-        </span>
-      </div>
-    )}
-
-    {/* Hint Section - Only for HARD questions */}
-    {currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing && (
-      <div style={{ 
-        marginBottom: 24, 
-        padding: 16, 
-        background: '#fef3c7', 
-        border: '1px solid #fbbf24',
-        borderRadius: 8,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: 14, color: '#92400e', fontWeight: 600 }}>
-            🎯 Hard Question - Hint Available
+        <div style={{ marginBottom: 16, textAlign: 'center' }}>
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '4px 12px',
+              borderRadius: 12,
+              fontSize: 12,
+              fontWeight: 600,
+              background:
+                currentDifficulty === 'easy'
+                  ? '#d1fae5'
+                  : currentDifficulty === 'medium'
+                  ? '#fef3c7'
+                  : '#fee2e2',
+              color:
+                currentDifficulty === 'easy'
+                  ? '#065f46'
+                  : currentDifficulty === 'medium'
+                  ? '#92400e'
+                  : '#991b1b',
+            }}
+          >
+            {currentDifficulty === 'easy' ? '🟢 Easy' : currentDifficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
           </span>
-          {!hint && (
-            <button
-              onClick={requestHint}
-              disabled={loadingHint || isRecording}
-              style={{
-                padding: '6px 12px',
-                background: loadingHint || isRecording ? '#d1d5db' : '#fbbf24',
-                color: loadingHint || isRecording ? '#6b7280' : '#000',
-                border: 0,
-                borderRadius: 6,
-                cursor: loadingHint || isRecording ? 'not-allowed' : 'pointer',
-                fontWeight: 500,
-                fontSize: 13,
-              }}
-            >
-              {loadingHint ? '⏳ Loading...' : '💡 Get Hint'}
-            </button>
-          )}
         </div>
-        
-        {hint && (
-          <div style={{ 
-            background: 'white', 
-            padding: 12, 
-            borderRadius: 6,
-            marginTop: 8,
-          }}>
-            <p style={{ margin: 0, marginBottom: 8, fontSize: 14, lineHeight: 1.5 }}>
-              <strong>💡 Hint:</strong> {hint.hint}
-            </p>
-            
-            {hint.keyTerms && hint.keyTerms.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <strong style={{ fontSize: 13 }}>Key Terms:</strong>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                  {hint.keyTerms.map((term, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        padding: '3px 8px',
-                        background: '#dbeafe',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        color: '#1e40af',
-                      }}
-                    >
-                      {term}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {hint.examples && hint.examples.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <strong style={{ fontSize: 13 }}>Consider:</strong>
-                <ul style={{ margin: '4px 0 0 0', paddingLeft: 20, fontSize: 13 }}>
-                  {hint.examples.map((example, i) => (
-                    <li key={i}>{example}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {hintError && (
-          <div style={{ 
-            marginTop: 8, 
-            padding: 8, 
-            background: '#fee2e2', 
-            borderRadius: 6,
-            fontSize: 13,
-            color: '#991b1b',
-          }}>
-            ⚠️ {hintError}
-          </div>
-        )}
-      </div>
-    )}
+      )}
 
-    {questionNumber > 0 && (
-        <div style={{ 
-          marginBottom: 24, 
-          padding: 16, 
-          background: currentDifficulty === 'hard' ? '#fef3c7' : '#f3f4f6',
-          border: `1px solid ${currentDifficulty === 'hard' ? '#fbbf24' : '#e5e7eb'}`,
-          borderRadius: 8,
-        }}>
+      {currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing && (
+        <div
+          style={{
+            marginBottom: 24,
+            padding: 16,
+            background: '#fef3c7',
+            border: '1px solid #fbbf24',
+            borderRadius: 8,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>
-              {currentDifficulty === 'hard' 
-                ? '🎯 Hard Question - Hint Available' 
-                : `Hint ${currentDifficulty === 'hard' ? 'available' : 'not available'} (${currentDifficulty || 'no difficulty'})`}
-            </span>
-            {currentDifficulty === 'hard' && !hint && (
+            <span style={{ fontSize: 14, color: '#92400e', fontWeight: 600 }}>🎯 Hard Question - Hint Available</span>
+            {!hint && (
               <button
                 onClick={requestHint}
                 disabled={loadingHint || isRecording}
@@ -812,13 +716,80 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
                   border: 0,
                   borderRadius: 6,
                   cursor: loadingHint || isRecording ? 'not-allowed' : 'pointer',
-                  fontWeight: 600,
-            }}
-          >
-            Start Interview
-          </button>
-        )}
-        
+                  fontWeight: 500,
+                  fontSize: 13,
+                }}
+              >
+                {loadingHint ? '⏳ Loading...' : '💡 Get Hint'}
+              </button>
+            )}
+          </div>
+
+          {hint && (
+            <div
+              style={{
+                background: 'white',
+                padding: 12,
+                borderRadius: 6,
+                marginTop: 8,
+              }}
+            >
+              <p style={{ margin: 0, marginBottom: 8, fontSize: 14, lineHeight: 1.5 }}>
+                <strong>💡 Hint:</strong> {hint.hint}
+              </p>
+
+              {hint.keyTerms && hint.keyTerms.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <strong style={{ fontSize: 13 }}>Key Terms:</strong>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                    {hint.keyTerms.map((term, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          padding: '3px 8px',
+                          background: '#dbeafe',
+                          borderRadius: 4,
+                          fontSize: 12,
+                          color: '#1e40af',
+                        }}
+                      >
+                        {term}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hint.examples && hint.examples.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <strong style={{ fontSize: 13 }}>Consider:</strong>
+                  <ul style={{ margin: '4px 0 0 0', paddingLeft: 20, fontSize: 13 }}>
+                    {hint.examples.map((example, i) => (
+                      <li key={i}>{example}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {hintError && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: 8,
+                background: '#fee2e2',
+                borderRadius: 6,
+                fontSize: 13,
+                color: '#991b1b',
+              }}
+            >
+              ⚠️ {hintError}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
         {!isRecording && !isProcessing && questionNumber === 0 && (
           <button
@@ -839,31 +810,19 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         )}
 
         {isRecording && (
-          <>
-            <div style={{
-              width: 80,
-              height: 80,
-              margin: '0 auto 16px',
-              background: '#ef4444',
-              borderRadius: '50%',
-              animation: 'pulse 1.5s infinite',
-              position: 'relative',
-            }}>
-              {/* <div style={{
-                position: 'absolute',
-                bottom: -30,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                fontSize: 12,
-                color: '#666',
-                whiteSpace: 'nowrap',
-              }}>
-                Level: {audioLevel.toFixed(1)}
-              </div> */}
-            </div>
-            <p style={{ fontSize: 16, color: '#666', marginBottom: 8 }}>
-              🎤 Recording... (auto-stops after 6s silence)
-            </p>
+          <div>
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                margin: '0 auto 16px',
+                background: '#ef4444',
+                borderRadius: '50%',
+                animation: 'pulse 1.5s infinite',
+                position: 'relative',
+              }}
+            />
+            <p style={{ fontSize: 16, color: '#666', marginBottom: 8 }}>🎤 Recording... (auto-stops after 6s silence)</p>
             <button
               onClick={stopRecording}
               style={{
@@ -878,20 +837,22 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
             >
               Stop Manually
             </button>
-          </>
+          </div>
         )}
 
         {isProcessing && (
           <div>
-            <div style={{
-              width: 40,
-              height: 40,
-              margin: '0 auto 12px',
-              border: '4px solid #e5e7eb',
-              borderTop: '4px solid #3b82f6',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-            }} />
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                margin: '0 auto 12px',
+                border: '4px solid #e5e7eb',
+                borderTop: '4px solid #3b82f6',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
             <p style={{ fontSize: 16, color: '#666' }}>⏳ Processing...</p>
           </div>
         )}
@@ -919,25 +880,29 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       )}
 
       {showEndConfirm && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-        }}>
-          <div style={{
-            background: 'white',
-            padding: 32,
-            borderRadius: 16,
-            maxWidth: 400,
-            textAlign: 'center',
-          }}>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: 32,
+              borderRadius: 16,
+              maxWidth: 400,
+              textAlign: 'center',
+            }}
+          >
             <h3 style={{ marginTop: 0 }}>End Interview?</h3>
             <p style={{ color: '#666', marginBottom: 24 }}>
               Are you sure you want to end this interview? You've answered {questionNumber} out of 5 questions.
@@ -987,7 +952,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.1); opacity: 0.8; }
         }
-        
+
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
