@@ -1,4 +1,4 @@
-// frontend/src/components/VoiceInterview.tsx
+// frontend/src/components/VoiceInterview.tsx (UPDATED with Live Transcript)
 import React, { useState, useRef, useEffect } from 'react';
 
 type Props = {
@@ -49,6 +49,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionNumber, setQuestionNumber] = useState(0);
   const [transcript, setTranscript] = useState('');
+  const [liveTranscript, setLiveTranscript] = useState(''); // 🆕 Live transcript
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -67,6 +68,12 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const questionNumberRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
   const interviewEndedEarlyRef = useRef(false);
+  
+  // 🆕 Live transcription refs
+  const streamChunksRef = useRef<Blob[]>([]);
+  const lastChunkTimeRef = useRef<number>(0);
+  const transcriptionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const previousContextRef = useRef<string>('');
 
   const token = localStorage.getItem('token');
   const API_BASE = import.meta.env.VITE_API_BASE;
@@ -98,6 +105,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       });
     }
   }, [isSafari]);
+
+  // 🆕 Cleanup transcription interval on unmount
+  useEffect(() => {
+    return () => {
+      if (transcriptionIntervalRef.current) {
+        clearInterval(transcriptionIntervalRef.current);
+      }
+    };
+  }, []);
 
   function getSupportedMimeType(): string | undefined {
     if (!window.MediaRecorder) {
@@ -163,6 +179,59 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     }
   }
 
+  // 🆕 Transcribe audio chunk for live display
+  async function transcribeChunk(audioBlob: Blob): Promise<string> {
+    try {
+      const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+      let extension = 'webm';
+      if (mimeType.includes('mp4')) extension = 'm4a';
+      else if (mimeType.includes('ogg')) extension = 'ogg';
+
+      const formData = new FormData();
+      formData.append('audio', audioBlob, `chunk-${Date.now()}.${extension}`);
+      formData.append('previousContext', previousContextRef.current);
+
+      const res = await fetch(`${API_BASE}/interview/transcribe-chunk`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        console.warn('⚠️ Chunk transcription failed:', res.status);
+        return '';
+      }
+
+      const data = await res.json();
+      return data.text || '';
+    } catch (err) {
+      console.error('❌ Chunk transcription error:', err);
+      return '';
+    }
+  }
+
+  // 🆕 Process accumulated chunks for live transcript
+  async function processLiveTranscript() {
+    if (streamChunksRef.current.length === 0) return;
+
+    const chunksToProcess = [...streamChunksRef.current];
+    streamChunksRef.current = [];
+
+    const audioBlob = new Blob(chunksToProcess, { 
+      type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
+    });
+
+    const newText = await transcribeChunk(audioBlob);
+    
+    if (newText) {
+      setLiveTranscript(prev => {
+        const updated = prev ? `${prev} ${newText}` : newText;
+        previousContextRef.current = updated.split(' ').slice(-50).join(' '); // Keep last 50 words as context
+        return updated;
+      });
+    }
+  }
+
   async function fetchNextQuestion() {
     if (interviewEndedEarlyRef.current) {
       console.log('⏹️ Interview ended early, skipping next question');
@@ -171,6 +240,8 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
 
     setIsProcessing(true);
     setTranscript('');
+    setLiveTranscript(''); // 🆕 Clear live transcript
+    previousContextRef.current = ''; // 🆕 Reset context
     setCurrentQuestion('');
     setHint(null);
     setHintError(null);
@@ -333,10 +404,14 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       console.log('📹 MediaRecorder options:', options);
       mediaRecorderRef.current = new MediaRecorder(stream, options);
       audioChunksRef.current = [];
+      streamChunksRef.current = []; // 🆕 Reset stream chunks
+      setLiveTranscript(''); // 🆕 Clear live transcript
+      previousContextRef.current = ''; // 🆕 Reset context
 
       mediaRecorderRef.current.ondataavailable = (e) => {
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data);
+          streamChunksRef.current.push(e.data); // 🆕 Also add to stream chunks
           console.log('📦 Chunk:', e.data.size, 'bytes');
         }
       };
@@ -348,16 +423,19 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         stopRecording();
       };
 
-      const timeslice = isSafari ? 1000 : 100;
+      const timeslice = isSafari ? 1000 : 500; // 🆕 Smaller chunks for live transcription
       mediaRecorderRef.current.start(timeslice);
 
       setIsRecording(true);
       isRecordingRef.current = true;
-      setTranscript('🎤 Recording... (speak clearly)');
+      setTranscript(''); // Clear final transcript
       setIsProcessing(false);
       silenceStartRef.current = null;
 
-      console.log('✅ Recording started');
+      // 🆕 Start live transcription interval
+      transcriptionIntervalRef.current = setInterval(processLiveTranscript, 2000); // Every 2 seconds
+
+      console.log('✅ Recording started with live transcription');
       detectSilence();
     } catch (err: any) {
       console.error('❌ Recording failed:', err);
@@ -455,6 +533,12 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     console.log('⏹️ Stopping recording...');
     isRecordingRef.current = false;
 
+    // 🆕 Stop live transcription
+    if (transcriptionIntervalRef.current) {
+      clearInterval(transcriptionIntervalRef.current);
+      transcriptionIntervalRef.current = null;
+    }
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -483,7 +567,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
     }
 
     setIsProcessing(true);
-    setTranscript('⏳ Transcribing...');
+    setTranscript('⏳ Finalizing transcription...');
 
     const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
     const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
@@ -604,17 +688,15 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
       animationFrameRef.current = null;
     }
 
+    // 🆕 Stop live transcription
+    if (transcriptionIntervalRef.current) {
+      clearInterval(transcriptionIntervalRef.current);
+      transcriptionIntervalRef.current = null;
+    }
+
     setIsProcessing(true);
     await completeInterview();
   }
-
-  console.log('🎨 Rendering with:', {
-    currentDifficulty,
-    questionNumber,
-    isProcessing,
-    isRecording,
-    showHintSection: currentDifficulty === 'hard' && questionNumber > 0,
-  });
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
@@ -629,22 +711,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           }}
         >
           ⚠️ <strong>Safari:</strong> For best results, use Chrome/Firefox/Edge.
-        </div>
-      )}
-
-      {questionNumber > 0 && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 8,
-            background: '#f0f0f0',
-            borderRadius: 4,
-            fontSize: 12,
-            fontFamily: 'monospace',
-          }}
-        >
-          {/* DEBUG: difficulty={currentDifficulty || 'null'} | qNum={questionNumber} | processing=
-          {isProcessing ? 'yes' : 'no'} | recording={isRecording ? 'yes' : 'no'} */}
         </div>
       )}
 
@@ -736,28 +802,6 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
               <p style={{ margin: 0, marginBottom: 8, fontSize: 14, lineHeight: 1.5 }}>
                 <strong>💡 Hint:</strong> {hint.hint}
               </p>
-
-              {/* {hint.keyTerms && hint.keyTerms.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <strong style={{ fontSize: 13 }}>Key Terms:</strong>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                    {hint.keyTerms.map((term, i) => (
-                      <span
-                        key={i}
-                        style={{
-                          padding: '3px 8px',
-                          background: '#dbeafe',
-                          borderRadius: 4,
-                          fontSize: 12,
-                          color: '#1e40af',
-                        }}
-                      >
-                        {term}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )} */}
 
               {hint.examples && hint.examples.length > 0 && (
                 <div style={{ marginTop: 8 }}>
@@ -939,9 +983,42 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         </div>
       )}
 
-      {transcript && (
+      {/* 🆕 LIVE TRANSCRIPT - Shows during recording */}
+      {isRecording && liveTranscript && (
+        <div style={{ 
+          padding: 20, 
+          background: '#dbeafe', 
+          border: '2px solid #3b82f6',
+          borderRadius: 8, 
+          marginBottom: 16,
+          minHeight: 80 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#ef4444',
+              animation: 'pulse 1s infinite'
+            }} />
+            <h3 style={{ margin: 0, fontSize: 16, color: '#1e40af' }}>Live Transcript</h3>
+          </div>
+          <p style={{ 
+            lineHeight: 1.6, 
+            whiteSpace: 'pre-wrap',
+            margin: 0,
+            fontSize: 15,
+            color: '#1e3a8a'
+          }}>
+            {liveTranscript}
+          </p>
+        </div>
+      )}
+
+      {/* FINAL TRANSCRIPT - Shows after recording stops */}
+      {transcript && !isRecording && (
         <div style={{ padding: 20, background: '#f9fafb', borderRadius: 8, minHeight: 100 }}>
-          <h3 style={{ marginTop: 0 }}>Transcript</h3>
+          <h3 style={{ marginTop: 0 }}>Final Transcript</h3>
           <p style={{ lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</p>
         </div>
       )}
