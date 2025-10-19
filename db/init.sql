@@ -80,6 +80,12 @@ CREATE TABLE IF NOT EXISTS interview_qa (
 ALTER TABLE interview_profiles 
   ADD COLUMN IF NOT EXISTS total_questions INT DEFAULT 5 
   CHECK (total_questions >= 1 AND total_questions <= 20);
+ALTER TABLE interview_qa 
+  ADD COLUMN IF NOT EXISTS tested_skills TEXT[] DEFAULT '{}';
+
+-- Create index for skills queries
+CREATE INDEX IF NOT EXISTS idx_interview_qa_tested_skills 
+  ON interview_qa USING GIN(tested_skills);
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);

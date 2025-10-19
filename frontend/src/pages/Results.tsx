@@ -1,6 +1,6 @@
 // frontend/src/pages/Results.tsx
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 type QuestionResult = {
   questionId: string;
@@ -34,6 +34,14 @@ type DifficultyBreakdown = {
   questionsAsked: number;
 };
 
+type SkillPerformance = {
+  skill: string;
+  averageScore: number;
+  timesTested: number;
+  questionNumbers: number[];
+  performance: 'excellent' | 'good' | 'satisfactory' | 'needs improvement';
+};
+
 type SessionResults = {
   session: {
     sessionId: string;
@@ -43,6 +51,7 @@ type SessionResults = {
     interviewType: string;
     status: string;
     totalQuestions: number;
+    allSkills: string[];
   };
   questions: QuestionResult[];
   summary: {
@@ -53,8 +62,20 @@ type SessionResults = {
       totalQuestions: number;
     };
     difficultyBreakdown: DifficultyBreakdown[];
+    skillPerformance: SkillPerformance[];
+    untestedSkills: string[]; 
   };
 };
+
+function getPerformanceColor(performance: string): string {
+  switch (performance) {
+    case 'excellent': return '#059669';
+    case 'good': return '#3b82f6';
+    case 'satisfactory': return '#f59e0b';
+    case 'needs improvement': return '#ef4444';
+    default: return '#9ca3af';
+  }
+}
 
 export default function Results() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -246,6 +267,113 @@ export default function Results() {
             marginBottom: 24,
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           }}>
+            <h2 style={{ marginTop: 0, marginBottom: 24 }}>Performance by Difficulty</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              {summary.difficultyBreakdown.map((diff) => (
+                <div
+                  key={diff.difficulty}
+                  style={{
+                    padding: 20,
+                    background: '#f9fafb',
+                    borderRadius: 12,
+                    border: '1px solid #e5e7eb',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#6b7280', marginBottom: 12 }}>
+                    {capitalize(diff.difficulty)}
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 'bold', color: getScoreColor(diff.averageScore), marginBottom: 8 }}>
+                    {diff.averageScore}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#9ca3af' }}>
+                    {diff.questionsAsked} question{diff.questionsAsked !== 1 ? 's' : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Skill Performance */}
+        {summary.skillPerformance.length > 0 && (
+          <div style={{
+            background: 'white',
+            padding: 32,
+            borderRadius: 16,
+            marginBottom: 24,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: 24 }}>Skills Assessment</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {summary.skillPerformance.map((skill) => (
+                <div
+                  key={skill.skill}
+                  style={{
+                    padding: 20,
+                    background: '#f9fafb',
+                    borderRadius: 12,
+                    border: '1px solid #e5e7eb',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div>
+                      <h3 style={{ margin: 0, marginBottom: 4 }}>{capitalize(skill.skill)}</h3>
+                      <div style={{ fontSize: 13, color: '#6b7280' }}>
+                        Tested {skill.timesTested} time{skill.timesTested !== 1 ? 's' : ''} • 
+                        Questions: {skill.questionNumbers.join(', ')}
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: '6px 16px',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      background: `${getPerformanceColor(skill.performance)}15`,
+                      color: getPerformanceColor(skill.performance),
+                    }}>
+                      {capitalize(skill.performance)}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      flex: 1,
+                      height: 12,
+                      background: '#e5e7eb',
+                      borderRadius: 6,
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: `${skill.averageScore}%`,
+                        height: '100%',
+                        background: getPerformanceColor(skill.performance),
+                        transition: 'width 0.3s ease',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 600, minWidth: 40 }}>
+                      {skill.averageScore}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Untested Skills */}
+            {summary.untestedSkills.length > 0 && (
+              <div style={{
+                marginTop: 16,
+                padding: 16,
+                background: '#fef3c7',
+                borderRadius: 8,
+                border: '1px solid #fbbf24',
+              }}>
+                <h4 style={{ margin: 0, marginBottom: 8, fontSize: 14, color: '#92400e' }}>
+                  ⚠️ Untested Skills
+                </h4>
+                <div style={{ fontSize: 13, color: '#78350f' }}>
+                  {summary.untestedSkills.map(s => capitalize(s)).join(', ')}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -274,19 +402,6 @@ export default function Results() {
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                     <h3 style={{ margin: 0 }}>Question {q.questionNumber}</h3>
-                    {/* {q.difficulty && (
-                      <span style={{
-                        padding: '4px 12px',
-                        borderRadius: 12,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        background: getDifficultyColor(q.difficulty),
-                        color: getDifficultyTextColor(q.difficulty),
-                      }}>
-                        {q.difficulty === 'easy' ? '🟢 Easy' : 
-                         q.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
-                      </span>
-                    )} */}
                     {q.questionCategory && (
                       <span style={{
                         padding: '4px 12px',
@@ -297,6 +412,18 @@ export default function Results() {
                         color: '#3730a3',
                       }}>
                         {capitalize(q.questionCategory)}
+                      </span>
+                    )}
+                    {q.difficulty && (
+                      <span style={{
+                        padding: '4px 12px',
+                        borderRadius: 12,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        background: '#f3f4f6',
+                        color: '#4b5563',
+                      }}>
+                        {capitalize(q.difficulty)}
                       </span>
                     )}
                   </div>
@@ -435,8 +562,6 @@ export default function Results() {
                   </div>
                 )}
               </div>
-
-            
             </div>
           ))}
         </div>

@@ -20,7 +20,6 @@ export class InterviewQA {
   @JoinColumn({ name: 'session_id' })
   session!: InterviewSession;
 
-  // 🆕 Add user_id
   @Column('uuid', { name: 'user_id' })
   userId!: string;
 
@@ -30,9 +29,12 @@ export class InterviewQA {
   @Column({ name: 'question', type: 'text' })
   question!: string;
 
-  // 🆕 Add question_category
   @Column({ name: 'question_category', type: 'text', nullable: true })
   questionCategory!: string | null;
+
+  // 🆕 Store which skills this question tests
+  @Column({ name: 'tested_skills', type: 'text', array: true, default: [] })
+  testedSkills!: string[];
 
   @Column({ name: 'difficulty', type: 'varchar', length: 10, nullable: true })
   difficulty!: 'easy' | 'medium' | 'hard' | null;
@@ -43,7 +45,7 @@ export class InterviewQA {
   @Column({ name: 'transcript', type: 'text', nullable: true })
   transcript!: string | null;
 
-  // 🆕 Detailed Evaluation Scores (0-100)
+  // Detailed Evaluation Scores (0-100)
   @Column({ name: 'overall_score', type: 'int', nullable: true })
   overallScore!: number | null;
 
@@ -62,7 +64,7 @@ export class InterviewQA {
   @Column({ name: 'relevance_to_role', type: 'int', nullable: true })
   relevanceToRole!: number | null;
 
-  // 🆕 Qualitative Assessment
+  // Qualitative Assessment
   @Column({ name: 'feedback', type: 'text', nullable: true })
   feedback!: string | null;
 
@@ -75,7 +77,7 @@ export class InterviewQA {
   @Column({ name: 'key_insights', type: 'text', array: true, nullable: true })
   keyInsights!: string[] | null;
 
-  // 🆕 Metadata
+  // Metadata
   @Column({ name: 'word_count', type: 'int', nullable: true })
   wordCount!: number | null;
 
@@ -85,14 +87,14 @@ export class InterviewQA {
   @Column({ name: 'confidence', type: 'varchar', length: 10, nullable: true })
   confidence!: 'low' | 'medium' | 'high' | null;
 
-  // 🆕 Red Flags and Follow-ups
+  // Red Flags and Follow-ups
   @Column({ name: 'red_flags', type: 'text', array: true, nullable: true })
   redFlags!: string[] | null;
 
   @Column({ name: 'follow_up_questions', type: 'text', array: true, nullable: true })
   followUpQuestions!: string[] | null;
 
-  // 🆕 Legacy JSONB field (kept for backward compatibility)
+  // Legacy JSONB field (kept for backward compatibility)
   @Column({ name: 'evaluation', type: 'jsonb', nullable: true })
   evaluation!: {
     score?: number;

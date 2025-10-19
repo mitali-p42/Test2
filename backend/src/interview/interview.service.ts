@@ -142,6 +142,7 @@ export class InterviewService {
     audioBuffer: Buffer;
     category: string;
     difficulty: string;
+    testedSkills: string[];
   }> {
     const session = await this.getSession(sessionId);
     const nextNumber = session.currentQuestionIndex + 1;
@@ -156,7 +157,7 @@ export class InterviewService {
 
     console.log(`📝 Generating question ${nextNumber}/${session.totalQuestions} - Category: ${category}`);
 
-    const { question, difficulty } = await this.aiService.generateQuestion(
+    const { question, difficulty, testedSkills } = await this.aiService.generateQuestion(
       session.role,
       session.interviewType,
       yearsOfExperience,
@@ -165,15 +166,33 @@ export class InterviewService {
     );
 
     console.log(`🎚️ Question difficulty: ${difficulty}`);
+    console.log(`🎯 Tested skills: ${testedSkills?.join(', ') || 'none'}`);
 
-    await this.saveQA(sessionId, session.userId, nextNumber, question, category, difficulty as any);
+    await this.saveQA(
+      sessionId,
+      session.userId,
+      nextNumber,
+      question,
+      category,
+      difficulty as any,
+      undefined, // answer
+      undefined, // transcript
+      testedSkills || [],
+    );
 
     const audioBuffer = await this.aiService.textToSpeech(question);
 
     session.currentQuestionIndex = nextNumber;
     await this.sessionRepo.save(session);
 
-    return { question, questionNumber: nextNumber, audioBuffer, category, difficulty };
+    return {
+      question,
+      questionNumber: nextNumber,
+      audioBuffer,
+      category,
+      difficulty,
+      testedSkills: testedSkills || [],
+    };
   }
 
   /** -------------------- Hints (only for hard) -------------------- */
@@ -283,6 +302,7 @@ export class InterviewService {
     difficulty?: 'easy' | 'medium' | 'hard',
     answer?: string,
     transcript?: string,
+    testedSkills?: string[],
   ) {
     const qa = this.qaRepo.create({
       sessionId,
@@ -293,6 +313,7 @@ export class InterviewService {
       difficulty: difficulty || null,
       answer: answer || null,
       transcript: transcript || null,
+      testedSkills: testedSkills || [],
     });
     return this.qaRepo.save(qa);
   }
@@ -324,6 +345,7 @@ export class InterviewService {
         's.totalQuestions',
         's.status',
         's.startedAt',
+        's.skills',
         's.terminatedForTabSwitches', 
         's.completedAt',
         's.createdAt',
@@ -369,6 +391,48 @@ export class InterviewService {
       questionsAsked: data.count,
     }));
 
+    const skillPerformance: Record<string, { 
+      count: number; 
+      totalScore: number; 
+      questions: number[];
+    }> = {};
+
+    qaList.forEach((qa) => {
+      if (qa.testedSkills && qa.testedSkills.length > 0 && qa.overallScore !== null) {
+        qa.testedSkills.forEach((skill) => {
+          if (!skillPerformance[skill]) {
+            skillPerformance[skill] = { count: 0, totalScore: 0, questions: [] };
+          }
+          skillPerformance[skill].count++;
+          skillPerformance[skill].totalScore += qa.overallScore!;
+          skillPerformance[skill].questions.push(qa.questionNumber);
+        });
+      }
+    });
+
+    const skillStats = Object.entries(skillPerformance)
+      .map(([skill, data]) => ({
+        skill,
+        averageScore: Math.round(data.totalScore / data.count),
+        timesTested: data.count,
+        questionNumbers: data.questions,
+        performance: data.totalScore / data.count >= 85 ? 'excellent' :
+                     data.totalScore / data.count >= 70 ? 'good' :
+                     data.totalScore / data.count >= 55 ? 'satisfactory' : 'needs improvement',
+      }))
+      .sort((a, b) => b.averageScore - a.averageScore); // Sort by score descending
+
+    // 🆕 Identify untested skills
+    const allSkills = session.skills || [];
+    const testedSkills = new Set(Object.keys(skillPerformance));
+    const untestedSkills = allSkills.filter(skill => !testedSkills.has(skill));
+    console.log('📊 Skills Analysis:', {
+      totalSkills: allSkills.length,
+      testedSkills: testedSkills.size,
+      untestedSkills: untestedSkills.length,
+      skillStats,
+    });
+
     console.log('📊 Difficulty distribution:', difficultyStats);
 
     return {
@@ -380,6 +444,7 @@ export class InterviewService {
         interviewType: session.interviewType,
         status: session.status,
         totalQuestions,
+        allSkills,
       },
       questions: qaList.map((qa) => ({
         questionId: qa.qaId,
@@ -387,6 +452,7 @@ export class InterviewService {
         questionCategory: qa.questionCategory,
         difficulty: qa.difficulty,
         question: qa.question,
+        testedSkills: qa.testedSkills || [],
         totalQuestions,
         answer: qa.answer,
         transcript: qa.transcript,
@@ -416,7 +482,9 @@ export class InterviewService {
           totalAnswered: answeredQuestions,
           totalQuestions,
         },
+        skillPerformance: skillStats,
         difficultyBreakdown: difficultyStats,
+        untestedSkills,
       },
     };
   }
