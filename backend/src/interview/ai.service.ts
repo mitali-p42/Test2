@@ -354,9 +354,8 @@ async transcribeAudioChunk(
       file: fs.createReadStream(tempPath),
       model: 'whisper-large-v3-turbo',
       language: 'en',
-      response_format: 'verbose_json', // we will cast this shape locally
+      response_format: 'text',
       temperature: 0.0,
-      prompt: previousContext,
     });
 
     fs.unlinkSync(tempPath);
@@ -366,7 +365,6 @@ async transcribeAudioChunk(
 
     return {
       text: typeof transcription === 'string' ? transcription : (t.text ?? ''),
-      confidence: t.segments?.[0]?.avg_logprob,
     };
   } catch (error: any) {
     console.error('❌ Chunk transcription error:', error.message);

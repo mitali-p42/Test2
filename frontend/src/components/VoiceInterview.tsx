@@ -258,6 +258,14 @@ async function recordTabSwitch() {
     console.log('🛑 Terminating interview due to tab switches...');
     
     interviewEndedEarlyRef.current = true;
+    isRecordingRef.current = false;
+
+    if (transcriptionIntervalRef.current) {
+    clearInterval(transcriptionIntervalRef.current);
+    transcriptionIntervalRef.current = null;
+    }
+    streamChunksRef.current = [];
+    audioChunksRef.current = [];
 
     if (isRecording) {
     console.log('⏹️ Force stopping recording...');
@@ -440,6 +448,7 @@ async function recordTabSwitch() {
   // 🆕 Process accumulated chunks for live transcript
   async function processLiveTranscript() {
     if (streamChunksRef.current.length === 0) return;
+    if (!isRecordingRef.current) return; 
 
     const chunksToProcess = [...streamChunksRef.current];
     streamChunksRef.current = [];
@@ -450,7 +459,7 @@ async function recordTabSwitch() {
 
     const newText = await transcribeChunk(audioBlob);
     
-    if (newText) {
+    if (newText && isRecordingRef.current) { 
       setLiveTranscript(prev => {
         const updated = prev ? `${prev} ${newText}` : newText;
         previousContextRef.current = updated.split(' ').slice(-50).join(' '); // Keep last 50 words as context
@@ -650,7 +659,7 @@ async function recordTabSwitch() {
         stopRecording();
       };
 
-      const timeslice = isSafari ? 1000 : 500; // 🆕 Smaller chunks for live transcription
+      const timeslice = 2000; // 🆕 Smaller chunks for live transcription
       mediaRecorderRef.current.start(timeslice);
 
       setIsRecording(true);
@@ -660,7 +669,7 @@ async function recordTabSwitch() {
       silenceStartRef.current = null;
 
       // 🆕 Start live transcription interval
-      transcriptionIntervalRef.current = setInterval(processLiveTranscript, 2000); // Every 2 seconds
+      transcriptionIntervalRef.current = setInterval(processLiveTranscript, 3000); // Every 2 seconds
 
       console.log('✅ Recording started with live transcription');
       detectSilence();
@@ -762,9 +771,10 @@ async function recordTabSwitch() {
 
     // 🆕 Stop live transcription
     if (transcriptionIntervalRef.current) {
-      clearInterval(transcriptionIntervalRef.current);
-      transcriptionIntervalRef.current = null;
-    }
+    clearInterval(transcriptionIntervalRef.current);
+    transcriptionIntervalRef.current = null;
+  }
+  streamChunksRef.current = [];
 
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
