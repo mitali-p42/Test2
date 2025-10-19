@@ -50,7 +50,7 @@ function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) 
 export default function VoiceInterview({ sessionId, profile, onComplete }: Props) {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const navigate = useNavigate();
-  const [totalQuestions, setTotalQuestions] = useState(5);
+  const [totalQuestions, setTotalQuestions] = useState(profile.totalQuestions || 5);
   const [questionNumber, setQuestionNumber] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [liveTranscript, setLiveTranscript] = useState(''); // 🆕 Live transcript from browser
@@ -1156,7 +1156,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
           >
             <h3 style={{ marginTop: 0 }}>End Interview?</h3>
             <p style={{ color: '#666', marginBottom: 24 }}>
-              Are you sure you want to end this interview? You've answered {questionNumber} out of {totalQuestions} questions.
+              Are you sure you want to end this interview? You've answered {questionNumber} out of {profile.totalQuestions || 5} questions.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               <button

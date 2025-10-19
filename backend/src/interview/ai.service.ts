@@ -337,7 +337,7 @@ CANDIDATE PROFILE:
 - Target Role: ${role}
 - Interview Type: ${interviewType}${skillsContext}
 
-QUESTION ${questionNumber}/5 REQUIREMENTS:
+QUESTION ${questionNumber} REQUIREMENTS:
 📋 Category: ${category.toUpperCase()}
 🎯 Focus Area: ${this.getCategoryGuidance(category, role, interviewType)}
 💡 Starter Template: "${starter}"
