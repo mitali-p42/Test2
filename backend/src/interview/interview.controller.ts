@@ -1,4 +1,4 @@
-// backend/src/interview/interview.controller.ts (FIXED)
+// backend/src/interview/interview.controller.ts
 import {
   Controller,
   Post,
@@ -28,10 +28,17 @@ type AuthedRequest = { user: RequestUser };
 export class InterviewController {
   constructor(private readonly service: InterviewService) {}
 
+  // 🔥 UPDATED: Accept totalQuestions
   @Post('sessions')
   async createSession(
     @Req() req: AuthedRequest,
-    @Body() body: { role: string; interviewType: string; yearsOfExperience?: number ;skills?: string[];},
+    @Body() body: { 
+      role: string; 
+      interviewType: string; 
+      yearsOfExperience?: number;
+      skills?: string[];
+      totalQuestions?: number; // 🆕 ADD THIS
+    },
   ) {
     return this.service.createSession(
       req.user.id,
@@ -39,6 +46,7 @@ export class InterviewController {
       body.interviewType,
       body.yearsOfExperience,
       body.skills,
+      body.totalQuestions || 5, // 🆕 PASS TO SERVICE
     );
   }
 
@@ -46,11 +54,6 @@ export class InterviewController {
   async startSession(@Param('id') sessionId: string) {
     return this.service.startSession(sessionId);
   }
-
-  // @Get('sessions/:id')
-  // async getSession(@Param('id') sessionId: string) {
-  //   return this.service.getSession(sessionId);
-  // }
 
   @Post('transcribe-chunk')
   @UseInterceptors(FileInterceptor('audio'))
@@ -92,6 +95,7 @@ export class InterviewController {
       );
     }
   }
+
   @Post('sessions/:id/tab-switch')
   async recordTabSwitch(@Param('id') sessionId: string) {
     try {
@@ -130,6 +134,7 @@ export class InterviewController {
   async getSession(@Param('id') sessionId: string) {
     return this.service.getSession(sessionId);
   }
+
   @Post('tts')
   async textToSpeech(
     @Body() body: { text: string },
@@ -145,7 +150,6 @@ export class InterviewController {
     return new StreamableFile(audioBuffer);
   }
 
-  // 🔥 FIXED: Now properly returns difficulty from service
   @Post('sessions/:id/next-question')
   async nextQuestion(
     @Param('id') sessionId: string,
@@ -169,7 +173,7 @@ export class InterviewController {
       return {
         question: result.question,
         questionNumber: result.questionNumber,
-        difficulty: result.difficulty, // 🔥 Critical: difficulty is passed through
+        difficulty: result.difficulty,
         category: result.category,
         audioBase64: result.audioBuffer.toString('base64'),
       };
@@ -186,7 +190,6 @@ export class InterviewController {
     }
   }
 
-  // 🆕 Hint endpoint with validation
   @Post('sessions/:id/hint')
   async getQuestionHint(
     @Param('id') sessionId: string,
@@ -199,11 +202,10 @@ export class InterviewController {
       
       console.log('✅ Hint generated successfully');
       
-      return hint; // 🔥 Return hint object directly (already has correct shape)
+      return hint;
     } catch (error: any) {
       console.error('❌ Hint request failed:', error.message);
       
-      // Return user-friendly error messages
       if (error.message?.includes('only available for hard')) {
         throw new HttpException(
           'Hints are only available for hard difficulty questions',

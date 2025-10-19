@@ -18,22 +18,30 @@ export class InterviewService {
 
   /** -------------------- Sessions -------------------- */
 
+  // 🔥 UPDATED: Accept totalQuestions parameter
   async createSession(
     userId: string,
     role: string,
     interviewType: string,
     yearsOfExperience?: number,
-    skills?: string[], 
+    skills?: string[],
+    totalQuestions: number = 5, // 🆕 ADD THIS PARAMETER
   ) {
+    // Validate and clamp total questions
+    const validatedTotal = Math.min(Math.max(totalQuestions, 1), 20);
+
     const session = this.sessionRepo.create({
       userId,
       role,
       interviewType,
       skills: skills || [],
       status: InterviewStatus.PENDING,
-      totalQuestions: 5,
+      totalQuestions: validatedTotal, // 🆕 USE CUSTOM VALUE
       currentQuestionIndex: 0,
     });
+    
+    console.log(`✅ Creating session with ${validatedTotal} questions`);
+    
     return this.sessionRepo.save(session);
   }
 
@@ -52,8 +60,7 @@ export class InterviewService {
     return session;
   }
   
-
-   async recordTabSwitch(sessionId: string): Promise<{
+  async recordTabSwitch(sessionId: string): Promise<{
     tabSwitches: number;
     shouldTerminate: boolean;
   }> {
@@ -68,7 +75,6 @@ export class InterviewService {
       return { tabSwitches: session.tabSwitches, shouldTerminate: false };
     }
 
-    // Increment tab switches
     session.tabSwitches += 1;
     session.tabSwitchTimestamps = [...session.tabSwitchTimestamps, new Date()];
 
@@ -87,86 +93,45 @@ export class InterviewService {
 
     await this.sessionRepo.save(session);
 
-    console.log('📊 Tab switch recorded:', {
-      sessionId,
-      count: session.tabSwitches,
-      shouldTerminate,
-    });
-
     return {
       tabSwitches: session.tabSwitches,
       shouldTerminate,
     };
   }
 
-
-
-
   /** -------------------- STT (chunk) -------------------- */
-  // NOTE: aiService.transcribeAudioChunk returns { text, confidence? }
-  // We log details and return text (string) to keep the signature simple for callers.
-  // async transcribeAudioChunk(
-  //   audioBuffer: Buffer,
-  //   previousContext: string = '',
-  // ): Promise<string> {
-  //   try {
-  //     console.log('🎙️ Transcribing audio chunk:', {
-  //       size: audioBuffer.length,
-  //       contextLength: previousContext.length,
-  //     });
+  async transcribeAudioChunk(
+    audioBuffer: Buffer,
+    previousContext: string = '',
+  ): Promise<string> {
+    try {
+      console.log('🎙️ Transcribing audio chunk:', {
+        size: audioBuffer.length,
+        contextLength: previousContext.length,
+      });
 
-  //     const chunkResult = await this.aiService.transcribeAudioChunk(
-  //       audioBuffer,
-  //       `chunk-${Date.now()}.webm`,
-  //       previousContext,
-  //     ); // => { text, confidence? }
+      const chunkResult = await this.aiService.transcribeAudioChunk(
+        audioBuffer,
+        `chunk-${Date.now()}.webm`,
+        previousContext,
+      );
 
-  //     const text = chunkResult?.text ?? '';
-  //     const confidence = chunkResult?.confidence;
+      const text = chunkResult?.text ?? '';
+      const confidence = chunkResult?.confidence;
 
-  //     console.log('✅ Chunk transcribed:', {
-  //       length: text.length,
-  //       preview: text.substring(0, 50),
-  //       confidence,
-  //     });
+      console.log('✅ Chunk transcribed:', {
+        length: text.length,
+        preview: text.substring(0, 50),
+        confidence,
+      });
 
-  //     return text;
-  //   } catch (err: any) {
-  //     console.error('❌ Chunk transcription failed:', err);
-  //     return '';
-  //   }
-  // }
-async transcribeAudioChunk(
-  audioBuffer: Buffer,
-  previousContext: string = '',
-): Promise<string> {
-  try {
-    console.log('🎙️ Transcribing audio chunk:', {
-      size: audioBuffer.length,
-      contextLength: previousContext.length,
-    });
-
-    const chunkResult = await this.aiService.transcribeAudioChunk(
-      audioBuffer,
-      `chunk-${Date.now()}.webm`,
-      previousContext,
-    ); // => { text, confidence? }
-
-    const text = chunkResult?.text ?? '';
-    const confidence = chunkResult?.confidence;
-
-    console.log('✅ Chunk transcribed:', {
-      length: text.length,  // ✅ Fixed: use text.length
-      preview: text.substring(0, 50),  // ✅ Fixed: use text.substring
-      confidence,
-    });
-
-    return text;  // ✅ Fixed: return text (string), not the full object
-  } catch (err: any) {
-    console.error('❌ Chunk transcription failed:', err);
-    return '';
+      return text;
+    } catch (err: any) {
+      console.error('❌ Chunk transcription failed:', err);
+      return '';
+    }
   }
-}
+
   /** -------------------- Questions -------------------- */
   async generateNextQuestion(
     sessionId: string,
@@ -181,21 +146,22 @@ async transcribeAudioChunk(
     const session = await this.getSession(sessionId);
     const nextNumber = session.currentQuestionIndex + 1;
 
+    // 🔥 USE SESSION'S TOTAL QUESTIONS
     if (nextNumber > session.totalQuestions) {
       throw new Error('Interview completed');
     }
 
-    // Rotate simple categories for variety
     const categories = ['behavioral', 'technical', 'situational', 'competency', 'problemSolving'];
     const category = categories[(nextNumber - 1) % categories.length];
 
-    console.log(`📝 Generating question ${nextNumber} - Category: ${category}`);
+    console.log(`📝 Generating question ${nextNumber}/${session.totalQuestions} - Category: ${category}`);
 
     const { question, difficulty } = await this.aiService.generateQuestion(
       session.role,
       session.interviewType,
       yearsOfExperience,
       nextNumber,
+      session.skills,
     );
 
     console.log(`🎚️ Question difficulty: ${difficulty}`);
@@ -239,7 +205,6 @@ async transcribeAudioChunk(
   }
 
   /** -------------------- Answer Processing -------------------- */
-  // NOTE: aiService.transcribeAudio returns string in your implementation.
   async processAnswer(
     sessionId: string,
     questionNumber: number,
@@ -279,7 +244,6 @@ async transcribeAudioChunk(
       confidence: evaluation.confidence,
     });
 
-    // Persist evaluation details
     qa.answer = transcript;
     qa.transcript = transcript;
     qa.overallScore = evaluation.overallScore;
@@ -294,7 +258,7 @@ async transcribeAudioChunk(
     qa.keyInsights = evaluation.keyInsights;
     qa.wordCount = evaluation.wordCount;
     qa.answerDurationSeconds = answerDuration;
-    qa.confidence = evaluation.confidence; // keep eval confidence; STT confidence lives in chunk path
+    qa.confidence = evaluation.confidence;
     qa.redFlags = evaluation.redFlags;
     qa.followUpQuestions = evaluation.followUpQuestions;
     qa.evaluation = {
@@ -382,10 +346,9 @@ async transcribeAudioChunk(
 
     const sumOfScores = qaList.reduce((sum, qa) => sum + (qa.overallScore || 0), 0);
     const avgOverallScore = totalQuestions > 0 
-    ? Math.round(sumOfScores / totalQuestions) // 🔥 Divide by total, not answered
+    ? Math.round(sumOfScores / totalQuestions)
     : 0;
 
-    // Aggregate by difficulty
     const difficultyPerformance: Record<
       'easy' | 'medium' | 'hard' | string,
       { count: number; totalScore: number }
@@ -458,7 +421,6 @@ async transcribeAudioChunk(
     };
   }
 
-  /** -------------------- Utilities -------------------- */
   private getGrade(score: number): string {
     if (score >= 85) return 'Excellent';
     if (score >= 70) return 'Good';
