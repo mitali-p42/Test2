@@ -141,18 +141,18 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
-INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type, skills,total_questions)
+INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type, skills, total_questions)
 VALUES (
   'a0000000-0000-0000-0000-000000000002',
-  'b@gmail.com', 
-  2.0, 
-  'Machine Learning Engineer', 
+  'b@gmail.com',
+  2.0,
+  'Machine Learning Engineer',
   'Technical',
   ARRAY[
     'Linear Regression',
     'Unsupervised Learning (Clustering)',
     'Dimensionality Reduction',
-    'Convolutional Neural Networks (CNNs)',
+    'Convolutional Neural Networks (CNNs)'
   ],
   5
 )

@@ -111,7 +111,7 @@ export default function Home() {
         const data = text ? JSON.parse(text) : {};
 
         if (!cancelled && res.ok) {
-          const d = data?.profile ?? data;
+          const d = data;
           setProfile({
             role: d.role ?? '—',
             interviewType: d.interviewType ?? d.interview_type ?? '—',

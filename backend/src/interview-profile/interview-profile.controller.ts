@@ -2,25 +2,14 @@ import { Controller, Get, Post, Patch, Body, Req, UseGuards } from '@nestjs/comm
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { InterviewProfileService } from './interview-profile.service';
 
-type RequestUser = { sub: string; email: string };
+type RequestUser = { id: string; email: string };
 type AuthedRequest = { user: RequestUser };
 
 @Controller('interview-profile')
 export class InterviewProfileController {
   constructor(private readonly service: InterviewProfileService) {}
 
-  @UseGuards(JwtAuthGuard)
-  @Get('me')
-  async getMyProfile(@Req() req: AuthedRequest) {
-    const profile = await this.service.getProfileForUser(req.user.sub);
-    return {
-      role: profile?.role ?? '—',
-      interviewType: profile?.interviewType ?? '—',
-      yearsOfExperience: profile?.yearsOfExperience ?? '—',
-      skills: profile?.skills ?? [],
-      totalQuestions: profile?.totalQuestions ?? 5, 
-    };
-  }
+  
 
   @UseGuards(JwtAuthGuard)
   @Post('setup')
@@ -40,7 +29,7 @@ export class InterviewProfileController {
       : 5;
 
     const profile = await this.service.upsertProfile(
-      req.user.sub,
+      req.user.id,
       req.user.email,
       {
         role: body.role,
@@ -62,6 +51,22 @@ export class InterviewProfileController {
       },
     };
   }
+  
+  @UseGuards(JwtAuthGuard)
+   @Get('me')
+   async getMyProfile(@Req() req: AuthedRequest) {
+     console.log('🔍 REQUEST USER ID:', req.user.id);
+     const profile = await this.service.getProfileForUser(req.user.id);
+     console.log('📄 FETCHED PROFILE:', JSON.stringify(profile, null, 2));
+     
+     return {
+       role: profile?.role ?? '—',
+       interviewType: profile?.interviewType ?? '—',
+       yearsOfExperience: profile?.yearsOfExperience ?? '—',
+       skills: profile?.skills ?? [],
+       totalQuestions: profile?.totalQuestions ?? 5,
+     };
+   }
 
   @UseGuards(JwtAuthGuard)
   @Patch('total-questions')
@@ -71,11 +76,11 @@ export class InterviewProfileController {
   ) {
     const validatedTotal = Math.min(Math.max(body.totalQuestions, 1), 20);
     
-    const profile = await this.service.getProfileForUser(req.user.sub);
+    const profile = await this.service.getProfileForUser(req.user.id);
     
     if (profile) {
       const updated = await this.service.upsertProfile(
-        req.user.sub,
+        req.user.id,
         req.user.email,
         {
           role: profile.role || undefined,
