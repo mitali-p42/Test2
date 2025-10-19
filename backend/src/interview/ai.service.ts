@@ -27,7 +27,6 @@ export interface DetailedEvaluation {
 export interface QuestionHint {
   hint: string;
   examples?: string[];
-  keyTerms?: string[];
 }
 
 const QUESTION_CATEGORIES = {
@@ -129,16 +128,15 @@ QUESTION: ${question}
 ROLE: ${role}
 INTERVIEW TYPE: ${interviewType}
 
-Your task: Provide a helpful hint that:
-1. Clarifies what the question is really asking
+Your task: Provide a helpful CONCISE that:
+1. Clarifies what the question is really asking in 1 or 2 sentences
 2. Explains key concepts or terminology
-3. Suggests what aspects to consider in the answer
+3. Suggests what aspects to consider in the answer 
 4. Does NOT provide the actual answer or specific examples to use
 
 CRITICAL: Return ONLY valid JSON with this structure:
 {
   "hint": "A clear, concise explanation of what the question is asking (2-3 sentences)",
-  "keyTerms": ["term1", "term2", "term3"],
   "examples": ["Example type 1 to consider", "Example type 2 to consider"]
 }`;
 
@@ -159,7 +157,6 @@ CRITICAL: Return ONLY valid JSON with this structure:
     const responseText = completion.choices[0]?.message?.content || '{}';
     const result = this.safeJsonParse<QuestionHint>(responseText, {
       hint: 'Consider breaking down the question into parts: What is being asked? What experience or knowledge would be relevant? What would a strong answer demonstrate?',
-      keyTerms: ['experience', 'approach', 'methodology'],
       examples: ['Past projects', 'Problem-solving approach', 'Team collaboration'],
     });
 
@@ -169,7 +166,6 @@ CRITICAL: Return ONLY valid JSON with this structure:
     console.error('❌ Hint generation failed:', error);
     return {
       hint: 'Think about: What is this question trying to evaluate? What specific experiences or knowledge would demonstrate your capability in this area?',
-      keyTerms: ['experience', 'skills', 'approach'],
       examples: ['Relevant past work', 'Problem-solving methods', 'Results achieved'],
     };
   }

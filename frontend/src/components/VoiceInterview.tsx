@@ -14,7 +14,6 @@ type Props = {
 type QuestionHint = {
   hint: string;
   examples?: string[];
-  keyTerms?: string[];
 };
 
 // Typewriter component
@@ -738,7 +737,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
                 <strong>💡 Hint:</strong> {hint.hint}
               </p>
 
-              {hint.keyTerms && hint.keyTerms.length > 0 && (
+              {/* {hint.keyTerms && hint.keyTerms.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <strong style={{ fontSize: 13 }}>Key Terms:</strong>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
@@ -758,7 +757,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
                     ))}
                   </div>
                 </div>
-              )}
+              )} */}
 
               {hint.examples && hint.examples.length > 0 && (
                 <div style={{ marginTop: 8 }}>
