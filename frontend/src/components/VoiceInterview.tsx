@@ -11,6 +11,11 @@ type Props = {
   onComplete: () => void;
 };
 
+type QuestionHint = {
+  hint: string;
+  examples?: string[];
+  keyTerms?: string[];
+};
 // Typewriter component
 function TypewriterText({ text, speed = 50 }: { text: string; speed?: number }) {
   const [displayedText, setDisplayedText] = useState('');
@@ -51,6 +56,7 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
   const [currentDifficulty, setCurrentDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
   const [loadingHint, setLoadingHint] = useState(false);
   const [hintError, setHintError] = useState<string | null>(null);
+  const [hint, setHint] = useState<QuestionHint | null>(null); //
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -218,21 +224,24 @@ export default function VoiceInterview({ sessionId, profile, onComplete }: Props
         });
 
         audio.addEventListener('ended', () => {
-          console.log('🔊 Audio finished, starting recording in 500ms');
-          setTimeout(() => startRecording(data.questionNumber), 500);
-        });
+        console.log('🔊 Audio finished, setting processing to false');
+        setIsProcessing(false); // 👈 ADD THIS LINE
+        console.log('🔊 Starting recording in 3000ms (3 seconds)');
+        setTimeout(() => startRecording(data.questionNumber), 3000);
+         });
         
         audio.addEventListener('error', () => {
           console.error('❌ Audio error, starting recording anyway');
           setCurrentQuestion(data.question);
-          setTimeout(() => startRecording(data.questionNumber), 500);
+          setIsProcessing(false); // 👈 ADD THIS LINE
+          setTimeout(() => startRecording(data.questionNumber), 3000);
         });
         
         await audio.play();
       } catch (audioErr) {
         console.error('❌ Audio error:', audioErr);
         setCurrentQuestion(data.question);
-        setTimeout(() => startRecording(data.questionNumber), 500);
+        setTimeout(() => startRecording(data.questionNumber), 3000);
       }
     } catch (err: any) {
       console.error('❌ Failed to fetch question:', err);
