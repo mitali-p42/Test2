@@ -266,19 +266,25 @@ export class InterviewService {
     if (!qa) {
       throw new NotFoundException(`Question ${questionNumber} not found`);
     }
+    
+    if (!qa.difficulty || qa.difficulty !== 'hard') {
+    throw new BadRequestException(
+      `Hints are only available for hard difficulty questions. This question is ${qa.difficulty || 'unrated'}.`
+    );
+  }
+  console.log(`✅ Question ${questionNumber} is HARD - generating hint`);
 
     // Get session for role/type context
     const session = await this.getSession(sessionId);
 
     // Generate hint using AI with optional difficulty context
     const hint = await this.aiService.generateQuestionHint(
-      qa.question,
-      session.role,
-      session.interviewType,
-      qa.difficulty || undefined,
-    );
+    qa.question,
+    session.role,
+    session.interviewType,
+  );
 
-    console.log('✅ Hint generated');
+    console.log('✅ Hint generated for hard question');
     return hint;
   }
 
