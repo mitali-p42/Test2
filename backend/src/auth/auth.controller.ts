@@ -17,7 +17,8 @@ export class AuthController {
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto.email, dto.password);
   }
-
+  
+  //Protected route — requires valid JWT
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@Request() req: any) {

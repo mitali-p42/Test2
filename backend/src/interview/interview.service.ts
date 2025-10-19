@@ -17,15 +17,15 @@ export class InterviewService {
 
   /** -------------------- Sessions -------------------- */
 
+  // Create a new session with validated total question count
   async createSession(
     userId: string,
     role: string,
     interviewType: string,
     yearsOfExperience?: number,
     skills?: string[],
-    totalQuestions: number = 5, 
+    totalQuestions: number = 5,
   ) {
-    // Validate and clamp total questions
     const validatedTotal = Math.min(Math.max(totalQuestions, 1), 20);
 
     const session = this.sessionRepo.create({
@@ -34,15 +34,14 @@ export class InterviewService {
       interviewType,
       skills: skills || [],
       status: InterviewStatus.PENDING,
-      totalQuestions: validatedTotal, 
+      totalQuestions: validatedTotal,
       currentQuestionIndex: 0,
     });
-    
-    console.log(`✅ Creating session with ${validatedTotal} questions`);
-    
+
     return this.sessionRepo.save(session);
   }
 
+  // Mark session as in progress and set start time
   async startSession(sessionId: string) {
     const session = await this.sessionRepo.findOne({ where: { sessionId } });
     if (!session) throw new NotFoundException('Session not found');
@@ -52,24 +51,26 @@ export class InterviewService {
     return this.sessionRepo.save(session);
   }
 
+  // Retrieve a session by id or throw if not found
   async getSession(sessionId: string) {
     const session = await this.sessionRepo.findOne({ where: { sessionId } });
     if (!session) throw new NotFoundException('Session not found');
     return session;
   }
-  
+
+  // Increment tab switch counters and optionally terminate session
   async recordTabSwitch(sessionId: string): Promise<{
     tabSwitches: number;
     shouldTerminate: boolean;
   }> {
     const session = await this.sessionRepo.findOne({ where: { sessionId } });
-    
-    if (!session) {
-      throw new NotFoundException('Session not found');
-    }
+    if (!session) throw new NotFoundException('Session not found');
 
-    if (session.status === InterviewStatus.COMPLETED || session.status === InterviewStatus.CANCELLED) {
-      console.log('⚠️ Tab switch recorded for already completed/cancelled session');
+    // Ignore if already finished
+    if (
+      session.status === InterviewStatus.COMPLETED ||
+      session.status === InterviewStatus.CANCELLED
+    ) {
       return { tabSwitches: session.tabSwitches, shouldTerminate: false };
     }
 
@@ -77,37 +78,24 @@ export class InterviewService {
     session.tabSwitchTimestamps = [...session.tabSwitchTimestamps, new Date()];
 
     const shouldTerminate = session.tabSwitches >= 3;
-
     if (shouldTerminate) {
-      console.log('🛑 Terminating interview due to tab switches:', {
-        sessionId,
-        count: session.tabSwitches,
-      });
-
       session.status = InterviewStatus.CANCELLED;
       session.terminatedForTabSwitches = true;
       session.completedAt = new Date();
     }
 
     await this.sessionRepo.save(session);
-
-    return {
-      tabSwitches: session.tabSwitches,
-      shouldTerminate,
-    };
+    return { tabSwitches: session.tabSwitches, shouldTerminate };
   }
 
   /** -------------------- STT (chunk) -------------------- */
+
+  // Transcribe a short audio chunk; returns plain text or empty string on failure
   async transcribeAudioChunk(
     audioBuffer: Buffer,
     previousContext: string = '',
   ): Promise<string> {
     try {
-      console.log('🎙️ Transcribing audio chunk:', {
-        size: audioBuffer.length,
-        contextLength: previousContext.length,
-      });
-
       const chunkResult = await this.aiService.transcribeAudioChunk(
         audioBuffer,
         `chunk-${Date.now()}.webm`,
@@ -115,14 +103,6 @@ export class InterviewService {
       );
 
       const text = chunkResult?.text ?? '';
-      const confidence = chunkResult?.confidence;
-
-      console.log('✅ Chunk transcribed:', {
-        length: text.length,
-        preview: text.substring(0, 50),
-        confidence,
-      });
-
       return text;
     } catch (err: any) {
       console.error('❌ Chunk transcription failed:', err);
@@ -131,6 +111,8 @@ export class InterviewService {
   }
 
   /** -------------------- Questions -------------------- */
+
+  // Generate the next question, persist its QA record, and synthesize TTS audio
   async generateNextQuestion(
     sessionId: string,
     yearsOfExperience: number | string = 0,
@@ -145,16 +127,15 @@ export class InterviewService {
     const session = await this.getSession(sessionId);
     const nextNumber = session.currentQuestionIndex + 1;
 
-    // USE SESSION'S TOTAL QUESTIONS
     if (nextNumber > session.totalQuestions) {
       throw new Error('Interview completed');
     }
 
+    // Round-robin category assignment
     const categories = ['behavioral', 'technical', 'situational', 'competency', 'problemSolving'];
     const category = categories[(nextNumber - 1) % categories.length];
 
-    console.log(`📝 Generating question ${nextNumber}/${session.totalQuestions} - Category: ${category}`);
-
+    // Generate question via AI and store initial QA row
     const { question, difficulty, testedSkills } = await this.aiService.generateQuestion(
       session.role,
       session.interviewType,
@@ -163,9 +144,6 @@ export class InterviewService {
       session.skills,
     );
 
-    console.log(`🎚️ Question difficulty: ${difficulty}`);
-    console.log(`🎯 Tested skills: ${testedSkills?.join(', ') || 'none'}`);
-
     await this.saveQA(
       sessionId,
       session.userId,
@@ -173,13 +151,15 @@ export class InterviewService {
       question,
       category,
       difficulty as any,
-      undefined, // answer
-      undefined, // transcript
+      undefined,
+      undefined,
       testedSkills || [],
     );
 
+    // Generate TTS audio for the question
     const audioBuffer = await this.aiService.textToSpeech(question);
 
+    // Advance session progress
     session.currentQuestionIndex = nextNumber;
     await this.sessionRepo.save(session);
 
@@ -194,42 +174,31 @@ export class InterviewService {
   }
 
   /** -------------------- Hints (only for hard) -------------------- */
-  async getQuestionHint(sessionId: string, questionNumber: number): Promise<QuestionHint> {
-    console.log('💡 Generating hint for question:', { sessionId, questionNumber });
 
+  // Return a hint for a stored question; allowed only when difficulty is 'hard'
+  async getQuestionHint(sessionId: string, questionNumber: number): Promise<QuestionHint> {
     const qa = await this.qaRepo.findOne({ where: { sessionId, questionNumber } });
-    if (!qa) {
-      throw new NotFoundException(`Question ${questionNumber} not found`);
-    }
+    if (!qa) throw new NotFoundException(`Question ${questionNumber} not found`);
 
     if (!qa.difficulty || qa.difficulty !== 'hard') {
       throw new BadRequestException(
         `Hints are only available for hard difficulty questions. This question is ${qa.difficulty || 'unrated'}.`,
       );
     }
-    console.log(`✅ Question ${questionNumber} is HARD - generating hint`);
 
     const session = await this.getSession(sessionId);
-
-    const hint = await this.aiService.generateQuestionHint(
-      qa.question,
-      session.role,
-      session.interviewType,
-    );
-
-    console.log('✅ Hint generated for hard question');
-    return hint;
+    return this.aiService.generateQuestionHint(qa.question, session.role, session.interviewType);
   }
 
   /** -------------------- Answer Processing -------------------- */
+
+  // Transcribe the submitted audio and run multi-metric evaluation; persist results on QA
   async processAnswer(
     sessionId: string,
     questionNumber: number,
     audioBuffer: Buffer,
     yearsOfExperience: number | string = 0,
   ): Promise<{ transcript: string; evaluation: DetailedEvaluation }> {
-    console.log('🔍 Processing answer:', { sessionId, questionNumber });
-
     const startTime = Date.now();
 
     const transcript: string = await this.aiService.transcribeAudio(
@@ -240,13 +209,9 @@ export class InterviewService {
     const answerDuration = Math.round((Date.now() - startTime) / 1000);
 
     const qa = await this.qaRepo.findOne({ where: { sessionId, questionNumber } });
-    if (!qa) {
-      throw new NotFoundException(`Question ${questionNumber} not found`);
-    }
+    if (!qa) throw new NotFoundException(`Question ${questionNumber} not found`);
 
     const session = await this.getSession(sessionId);
-
-    console.log('🤖 Starting evaluation...');
 
     const evaluation = await this.aiService.evaluateAnswer(
       qa.question,
@@ -256,11 +221,7 @@ export class InterviewService {
       questionNumber,
     );
 
-    console.log('✅ Evaluation complete:', {
-      overallScore: evaluation.overallScore,
-      confidence: evaluation.confidence,
-    });
-
+    // Persist evaluation details on QA row
     qa.answer = transcript;
     qa.transcript = transcript;
     qa.overallScore = evaluation.overallScore;
@@ -286,11 +247,12 @@ export class InterviewService {
     };
 
     await this.qaRepo.save(qa);
-
     return { transcript, evaluation };
   }
 
   /** -------------------- Persistence helpers -------------------- */
+
+  // Create and save a QA row for a question
   async saveQA(
     sessionId: string,
     userId: string,
@@ -316,6 +278,7 @@ export class InterviewService {
     return this.qaRepo.save(qa);
   }
 
+  // Mark a session as completed and set completion time
   async completeSession(sessionId: string) {
     const session = await this.getSession(sessionId);
     session.status = InterviewStatus.COMPLETED;
@@ -323,6 +286,7 @@ export class InterviewService {
     return this.sessionRepo.save(session);
   }
 
+  // Return all QA rows for a session ordered by question number
   async getSessionQAs(sessionId: string) {
     return this.qaRepo.find({
       where: { sessionId },
@@ -331,6 +295,8 @@ export class InterviewService {
   }
 
   /** -------------------- Results / Summary -------------------- */
+
+  // Aggregate session with user info and computed performance statistics
   async getSessionResults(sessionId: string) {
     const session = await this.sessionRepo
       .createQueryBuilder('s')
@@ -344,7 +310,7 @@ export class InterviewService {
         's.status',
         's.startedAt',
         's.skills',
-        's.terminatedForTabSwitches', 
+        's.terminatedForTabSwitches',
         's.completedAt',
         's.createdAt',
         'u.id',
@@ -352,9 +318,7 @@ export class InterviewService {
       ])
       .getOne();
 
-    if (!session) {
-      throw new NotFoundException('Session not found');
-    }
+    if (!session) throw new NotFoundException('Session not found');
 
     const qaList = await this.qaRepo.find({
       where: { sessionId },
@@ -364,11 +328,11 @@ export class InterviewService {
     const totalQuestions = session.totalQuestions || 5;
     const answeredQuestions = qaList.filter((qa) => qa.answer).length;
 
+    // Overall average across all questions (includes unanswered as 0)
     const sumOfScores = qaList.reduce((sum, qa) => sum + (qa.overallScore || 0), 0);
-    const avgOverallScore = totalQuestions > 0 
-    ? Math.round(sumOfScores / totalQuestions)
-    : 0;
+    const avgOverallScore = totalQuestions > 0 ? Math.round(sumOfScores / totalQuestions) : 0;
 
+    // Average per difficulty band
     const difficultyPerformance: Record<
       'easy' | 'medium' | 'hard' | string,
       { count: number; totalScore: number }
@@ -389,11 +353,9 @@ export class InterviewService {
       questionsAsked: data.count,
     }));
 
-    const skillPerformance: Record<string, { 
-      count: number; 
-      totalScore: number; 
-      questions: number[];
-    }> = {};
+    // Skill performance aggregation across QAs
+    const skillPerformance: Record<string, { count: number; totalScore: number; questions: number[] }> =
+      {};
 
     qaList.forEach((qa) => {
       if (qa.testedSkills && qa.testedSkills.length > 0 && qa.overallScore !== null) {
@@ -414,24 +376,21 @@ export class InterviewService {
         averageScore: Math.round(data.totalScore / data.count),
         timesTested: data.count,
         questionNumbers: data.questions,
-        performance: data.totalScore / data.count >= 85 ? 'excellent' :
-                     data.totalScore / data.count >= 70 ? 'good' :
-                     data.totalScore / data.count >= 55 ? 'satisfactory' : 'needs improvement',
+        performance:
+          data.totalScore / data.count >= 85
+            ? 'excellent'
+            : data.totalScore / data.count >= 70
+            ? 'good'
+            : data.totalScore / data.count >= 55
+            ? 'satisfactory'
+            : 'needs improvement',
       }))
-      .sort((a, b) => b.averageScore - a.averageScore); // Sort by score descending
+      .sort((a, b) => b.averageScore - a.averageScore);
 
-    // 🆕 Identify untested skills
+    // Report skills not covered by any QA
     const allSkills = session.skills || [];
     const testedSkills = new Set(Object.keys(skillPerformance));
-    const untestedSkills = allSkills.filter(skill => !testedSkills.has(skill));
-    console.log('📊 Skills Analysis:', {
-      totalSkills: allSkills.length,
-      testedSkills: testedSkills.size,
-      untestedSkills: untestedSkills.length,
-      skillStats,
-    });
-
-    console.log('📊 Difficulty distribution:', difficultyStats);
+    const untestedSkills = allSkills.filter((skill) => !testedSkills.has(skill));
 
     return {
       session: {
@@ -487,6 +446,7 @@ export class InterviewService {
     };
   }
 
+  // Map numeric score to a descriptive grade label
   private getGrade(score: number): string {
     if (score >= 85) return 'Excellent';
     if (score >= 70) return 'Good';
@@ -494,6 +454,7 @@ export class InterviewService {
     return 'Needs Improvement';
   }
 
+  // Thin wrapper to AI TTS for controller usage
   async textToSpeech(text: string): Promise<Buffer> {
     return this.aiService.textToSpeech(text);
   }

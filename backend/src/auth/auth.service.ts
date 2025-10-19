@@ -10,18 +10,22 @@ export class AuthService {
   async register(email: string, password: string) {
     const existing = await this.users.findByEmail(email);
     if (existing) throw new ConflictException('Email already in use');
+
+    // Hash password before storing
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await this.users.create(email, passwordHash);
+
+    // Return JWT for immediate authentication
     return this.signToken(user.id, user.email);
   }
-
   async login(email: string, password: string) {
     const user = await this.users.findByEmail(email);
 
     if (!user) {
       throw new NotFoundException('No account found with this email. Please register.');
     }
-
+    
+    // Verify password against stored hash
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException('Incorrect password. Please try again.');
@@ -31,8 +35,10 @@ export class AuthService {
   }
 
   async me(userId: string) {
+    // Retrieve user with related profile data if available
     const user = await this.users.findByIdWithProfile(userId);
     if (!user) {
+      // Return defaults if user/profile not found
       return {
         id: null,
         email: null,
@@ -57,6 +63,7 @@ export class AuthService {
     };
   }
 
+  // Generate and sign JWT token with user ID and email
   private signToken(sub: string, email: string) {
     const access_token = this.jwt.sign({ sub, email });
     return { access_token };

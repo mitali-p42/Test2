@@ -77,26 +77,22 @@ export class AIService {
     if (!groqKey) console.warn('⚠️  GROQ_API_KEY not set');
     if (!openaiKey) console.warn('⚠️  OPENAI_API_KEY not set');
 
+    // In production, prefer failing fast if keys are missing instead of using 'dummy'
     this.groq = new Groq({ apiKey: groqKey || 'dummy' });
     this.openai = new OpenAI({ apiKey: openaiKey || 'dummy' });
   }
 
-  // Safe JSON parsing with fallback
+  // Attempts to extract JSON from common LLM wrappers (```json blocks, raw objects); falls back if parsing fails
   private safeJsonParse<T>(text: string, fallback: T): T {
     try {
-      // Try to extract JSON from markdown code blocks
       const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[1]);
       }
-
-      // Try to extract JSON from curly braces
       const objectMatch = text.match(/\{[\s\S]*\}/);
       if (objectMatch) {
         return JSON.parse(objectMatch[0]);
       }
-
-      // Try direct parse
       return JSON.parse(text);
     } catch (error) {
       console.error('❌ JSON parse failed, using fallback:', {
@@ -143,6 +139,7 @@ CRITICAL: Return ONLY valid JSON with this structure:
   "examples": ["Example type 1 to consider", "Example type 2 to consider"]
 }`;
 
+    // response_format enforces JSON, reducing downstream parsing failures
     const completion = await this.groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages: [
@@ -177,6 +174,7 @@ CRITICAL: Return ONLY valid JSON with this structure:
 
   async transcribeAudio(audioBuffer: Buffer, filename: string = 'audio.webm'): Promise<string> {
     try {
+      // Write to /tmp to avoid memory bloat; ensure cleanup on success/failure
       const tempPath = path.join('/tmp', filename);
       fs.writeFileSync(tempPath, audioBuffer);
 
@@ -194,65 +192,70 @@ CRITICAL: Return ONLY valid JSON with this structure:
       throw new Error('Transcription failed');
     }
   }
+
   async generateWarmupQuestion(role: string): Promise<string> {
-  return `Let's start with a quick warm-up. Tell me briefly about your background as a ${role} and what interests you most about this role.`;
-}
+    return `Let's start with a quick warm-up. Tell me briefly about your background as a ${role} and what interests you most about this role.`;
+  }
+
   async transcribeAudioStreaming(audioBuffer: Buffer, filename: string = 'audio.webm'): Promise<string> {
-  try {
-    const tempPath = path.join('/tmp', filename);
-    fs.writeFileSync(tempPath, audioBuffer);
+    try {
+      // Streaming mode requests timestamps; still writes a temp file then deletes it
+      const tempPath = path.join('/tmp', filename);
+      fs.writeFileSync(tempPath, audioBuffer);
 
-    console.log('🎙️ Starting streaming transcription:', { size: audioBuffer.length });
+      console.log('🎙️ Starting streaming transcription:', { size: audioBuffer.length });
 
-    const transcription = await this.groq.audio.transcriptions.create({
-      file: fs.createReadStream(tempPath),
-      model: 'whisper-large-v3-turbo',
-      language: 'en',
-      response_format: 'verbose_json', // Get detailed timestamps
-      temperature: 0.0, // More deterministic for live transcription
-    });
+      const transcription = await this.groq.audio.transcriptions.create({
+        file: fs.createReadStream(tempPath),
+        model: 'whisper-large-v3-turbo',
+        language: 'en',
+        response_format: 'verbose_json', // Get detailed timestamps
+        temperature: 0.0, // More deterministic for live transcription
+      });
 
-    fs.unlinkSync(tempPath);
-    
-    const text = typeof transcription === 'string' ? transcription : transcription.text || '';
-    console.log('✅ Streaming transcription complete:', { length: text.length });
-    
-    return text;
-  } catch (error: any) {
-    console.error('❌ Groq streaming STT error:', error.message);
-    throw new Error('Streaming transcription failed');
+      fs.unlinkSync(tempPath);
+      
+      const text = typeof transcription === 'string' ? transcription : transcription.text || '';
+      console.log('✅ Streaming transcription complete:', { length: text.length });
+      
+      return text;
+    } catch (error: any) {
+      console.error('❌ Groq streaming STT error:', error.message);
+      throw new Error('Streaming transcription failed');
+    }
   }
-}
-async transcribeAudioChunk(
-  audioChunk: Buffer, 
-  filename: string = 'chunk.webm',
-  previousContext: string = ''
-): Promise<{ text: string; confidence?: number }> {
-  try {
-    const tempPath = path.join('/tmp', filename);
-    fs.writeFileSync(tempPath, audioChunk);
 
-    const transcription = await this.groq.audio.transcriptions.create({
-      file: fs.createReadStream(tempPath),
-      model: 'whisper-large-v3-turbo',
-      language: 'en',
-      response_format: 'text',
-      temperature: 0.0,
-    });
+  async transcribeAudioChunk(
+    audioChunk: Buffer, 
+    filename: string = 'chunk.webm',
+    previousContext: string = ''
+  ): Promise<{ text: string; confidence?: number }> {
+    try {
+      const tempPath = path.join('/tmp', filename);
+      fs.writeFileSync(tempPath, audioChunk);
 
-    fs.unlinkSync(tempPath);
+      const transcription = await this.groq.audio.transcriptions.create({
+        file: fs.createReadStream(tempPath),
+        model: 'whisper-large-v3-turbo',
+        language: 'en',
+        response_format: 'text',
+        temperature: 0.0,
+      });
 
-    // Cast the runtime shape to access segments safely
-    const t = (transcription as unknown) as GroqVerboseTranscription;
+      fs.unlinkSync(tempPath);
 
-    return {
-      text: typeof transcription === 'string' ? transcription : (t.text ?? ''),
-    };
-  } catch (error: any) {
-    console.error('❌ Chunk transcription error:', error.message);
-    return { text: '', confidence: 0 };
+      // Some SDK responses may differ; guard with a loose cast
+      const t = (transcription as unknown) as GroqVerboseTranscription;
+
+      return {
+        text: typeof transcription === 'string' ? transcription : (t.text ?? ''),
+      };
+    } catch (error: any) {
+      console.error('❌ Chunk transcription error:', error.message);
+      return { text: '', confidence: 0 };
+    }
   }
-}
+
   async generateQuestion(
     role: string,
     interviewType: string,
@@ -264,10 +267,9 @@ async transcribeAudioChunk(
       const category = this.getQuestionCategory(questionNumber);
       const starter = this.getRandomStarter(category);
       
-      // Determine difficulty based on experience level
+      // Difficulty scales with experience and position in sequence
       const experience = Number(yearsOfExperience) || 0;
       let targetDifficulty: 'easy' | 'medium' | 'hard';
-      
       if (experience < 2) {
         targetDifficulty = questionNumber <= 2 ? 'easy' : 'medium';
       } else if (experience < 5) {
@@ -275,10 +277,11 @@ async transcribeAudioChunk(
       } else {
         targetDifficulty = questionNumber <= 1 ? 'medium' : 'hard';
       }
-      const skillsContext = skills.length > 0
-      ? `\n\nCANDIDATE SKILLS: ${skills.join(', ')}\n- Focus questions on testing these specific skills\n- Ask about practical application of these skills\n- Try to cover each different skill or set of skills randomly to make sure you cover all.`
-      : '';
 
+      // Optional skills context nudges LLM towards targeted probes
+      const skillsContext = skills.length > 0
+        ? `\n\nCANDIDATE SKILLS: ${skills.join(', ')}\n- Focus questions on testing these specific skills\n- Ask about practical application of these skills\n- Try to cover each different skill or set of skills randomly to make sure you cover all.`
+        : '';
 
       const prompt = `You are conducting a professional ${interviewType} interview for a ${role} position.
 
@@ -333,7 +336,7 @@ Generate ONE clear, focused question (no numbering or preamble):`;
         };
       }
       
-      // Verify difficulty of generated question
+      // Sanity-check the generated difficulty to avoid drift
       const verifiedDifficulty = await this.verifyQuestionDifficulty(
         question,
         role,
@@ -356,39 +359,38 @@ Generate ONE clear, focused question (no numbering or preamble):`;
       };
     }
   }
+
   private extractTestedSkills(question: string, availableSkills: string[]): string[] {
-  if (!availableSkills || availableSkills.length === 0) {
-    return [];
-  }
-
-  const questionLower = question.toLowerCase();
-  const testedSkills: string[] = [];
-
-  for (const skill of availableSkills) {
-    // Check if the skill or its variations appear in the question
-    const skillLower = skill.toLowerCase();
-    const skillWords = skillLower.split(' ');
-    
-    // Check for exact match or partial match of multi-word skills
-    if (questionLower.includes(skillLower) || 
-        skillWords.some(word => word.length > 3 && questionLower.includes(word))) {
-      testedSkills.push(skill);
+    if (!availableSkills || availableSkills.length === 0) {
+      return [];
     }
-  }
 
-  // If no skills detected but we have skills available, randomly select 1-2
-  if (testedSkills.length === 0 && availableSkills.length > 0) {
-    const numToSelect = Math.min(Math.floor(Math.random() * 2) + 1, availableSkills.length);
-    for (let i = 0; i < numToSelect; i++) {
-      const randomIndex = Math.floor(Math.random() * availableSkills.length);
-      if (!testedSkills.includes(availableSkills[randomIndex])) {
-        testedSkills.push(availableSkills[randomIndex]);
+    // Heuristic: look for exact or partial (>3 chars) matches of skill tokens
+    const questionLower = question.toLowerCase();
+    const testedSkills: string[] = [];
+
+    for (const skill of availableSkills) {
+      const skillLower = skill.toLowerCase();
+      const skillWords = skillLower.split(' ');
+      if (questionLower.includes(skillLower) || 
+          skillWords.some(word => word.length > 3 && questionLower.includes(word))) {
+        testedSkills.push(skill);
       }
     }
-  }
 
-  return testedSkills;
-}
+    // If nothing matched, randomly pick 1–2 to keep UI populated (optional UX choice)
+    if (testedSkills.length === 0 && availableSkills.length > 0) {
+      const numToSelect = Math.min(Math.floor(Math.random() * 2) + 1, availableSkills.length);
+      for (let i = 0; i < numToSelect; i++) {
+        const randomIndex = Math.floor(Math.random() * availableSkills.length);
+        if (!testedSkills.includes(availableSkills[randomIndex])) {
+          testedSkills.push(availableSkills[randomIndex]);
+        }
+      }
+    }
+
+    return testedSkills;
+  }
 
   private async verifyQuestionDifficulty(
     question: string,
@@ -397,6 +399,7 @@ Generate ONE clear, focused question (no numbering or preamble):`;
     targetDifficulty: 'easy' | 'medium' | 'hard',
   ): Promise<'easy' | 'medium' | 'hard'> {
     try {
+      // Forces a structured judgment so UI can trust the difficulty label
       const prompt = `Analyze this interview question and determine its difficulty level.
 
 QUESTION: ${question}
@@ -436,7 +439,6 @@ CRITICAL: Return ONLY valid JSON with this structure:
       );
 
       console.log(`📊 Difficulty analysis: ${result.difficulty} (target: ${targetDifficulty}) - ${result.reasoning}`);
-      
       return result.difficulty;
     } catch (error: any) {
       console.error('❌ Difficulty verification failed:', error);
@@ -519,6 +521,7 @@ CRITICAL: Return ONLY valid JSON with this structure:
     const minExpectedWords = experience < 2 ? 30 : experience < 5 ? 50 : 80;
     const answerWordCount = answer.trim().split(/\s+/).length;
 
+    // Penalizes extremely short or generic answers; enforces JSON-only shape
     const prompt = `You are a technical interviewer evaluating a ${role} candidate with ${yearsOfExperience} years of experience.
 
 QUESTION ASKED:
@@ -571,7 +574,7 @@ Return ONLY this JSON structure (no other text):
         reasoning: 'Fallback evaluation used',
       });
 
-      // Additional validation
+      // Post-process adjustments for brevity/generic responses
       if (answerWordCount < minExpectedWords) {
         result.technicalAccuracy = Math.min(result.technicalAccuracy || 0, 40);
         result.depthOfKnowledge = Math.min(result.depthOfKnowledge || 0, 35);
@@ -618,6 +621,7 @@ Return ONLY this JSON structure (no other text):
   private async communicationAgentEvaluation(answer: string): Promise<any> {
     const wordCount = answer.trim().split(/\s+/).length;
 
+    // Communication-only rubric; avoids technical leakage
     const prompt = `Evaluate ONLY the communication quality of this interview answer:
 
 ANSWER: ${answer}
@@ -693,6 +697,7 @@ Return ONLY this JSON structure (no other text):
     const experience = Number(yearsOfExperience) || 0;
     const wordCount = answer.trim().split(/\s+/).length;
 
+    // Aligns to role & seniority; returns follow-ups for interviewer UI
     const prompt = `Evaluate role-specific competency for a ${role} with ${experience} years of experience.
 
 QUESTION: ${question}
@@ -767,6 +772,7 @@ Return ONLY this JSON structure (no other text):
   ): DetailedEvaluation {
     const wordCount = answer.trim().split(/\s+/).length;
 
+    // Weighted scoring: tech (65%), comms (15%), role fit (20%)
     const rawScore = Math.round(
       (technical.technicalAccuracy * 0.30) +
       (technical.depthOfKnowledge * 0.20) +
@@ -778,6 +784,7 @@ Return ONLY this JSON structure (no other text):
     let overallScore = rawScore;
     const penalties: string[] = [];
 
+    // Guardrails against very short/generic answers
     if (wordCount < 10) {
       overallScore = Math.min(overallScore, 15);
       penalties.push('Extremely brief answer');
@@ -795,6 +802,7 @@ Return ONLY this JSON structure (no other text):
       penalties.push('Generic or trivial response');
     }
 
+    // If multiple subscores are weak, cap overall to avoid inflation
     const lowScores = [
       technical.technicalAccuracy,
       technical.depthOfKnowledge,
@@ -806,6 +814,7 @@ Return ONLY this JSON structure (no other text):
       overallScore = Math.min(overallScore, 45);
     }
 
+    // Confidence heuristic (spread + verbosity)
     let confidence: 'low' | 'medium' | 'high' = 'medium';
     const scoreVariance = Math.max(
       technical.technicalAccuracy,
@@ -866,6 +875,7 @@ Return ONLY this JSON structure (no other text):
     wordCount: number,
     penalties: string[],
   ): string {
+    // Single place to tune UX copy by score band
     if (wordCount < 10) {
       return 'Answer is too brief and lacks substance. Please provide detailed, thoughtful responses that demonstrate your knowledge and experience. Aim for at least 40-50 words per answer.';
     }
@@ -888,6 +898,7 @@ Return ONLY this JSON structure (no other text):
   }
 
   private getFallbackEvaluation(answer: string): DetailedEvaluation {
+    // Conservative, non-blocking fallback so UI can proceed gracefully
     const wordCount = answer.split(/\s+/).length;
     return {
       overallScore: 70,
@@ -909,6 +920,7 @@ Return ONLY this JSON structure (no other text):
 
   async textToSpeech(text: string): Promise<Buffer> {
     try {
+      // OpenAI TTS (mp3) -> Buffer for streaming to client
       const mp3 = await this.openai.audio.speech.create({
         model: 'tts-1',
         voice: 'alloy',

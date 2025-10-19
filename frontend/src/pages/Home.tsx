@@ -220,7 +220,7 @@ export default function Home() {
             <EnvItem ok={httpsOk} label="Secure HTTPS" />
             <EnvItem ok={hasMicDevice === true} label={hasMicDevice === false ? 'No mic' : 'Mic detected'} pending={hasMicDevice === null} />
             <EnvItem ok={permissionState === 'granted'} label={permissionState === 'granted' ? 'Mic allowed' : 'Mic needed'} warn={permissionState === 'denied'} />
-            <EnvItem ok={micTested === 'ok'} label={micTested === 'ok' ? 'Mic tested' : 'Test mic'} pending={micTested === 'idle'} warn={micTested === 'failed'} />
+  
           </div>
           <button onClick={handleMicTest} style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f3f4f6', cursor: 'pointer' }}>
             🔊 Test microphone

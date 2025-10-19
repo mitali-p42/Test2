@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
   user_id UUID NOT NULL,
   role TEXT NOT NULL,
   interview_type TEXT NOT NULL,
-  skills TEXT[] DEFAULT '{}', -- 🆕 Add skills array
+  skills TEXT[] DEFAULT '{}',
   status VARCHAR(20) DEFAULT 'pending',
   current_question_index INT DEFAULT 0,
   total_questions INT DEFAULT 5,
@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS interview_sessions (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- Rest of interview_qa table unchanged...
 CREATE TABLE IF NOT EXISTS interview_qa (
   qa_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
@@ -101,11 +100,20 @@ CREATE INDEX IF NOT EXISTS idx_interview_qa_user_id ON interview_qa(user_id);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_overall_score ON interview_qa(overall_score);
 CREATE INDEX IF NOT EXISTS idx_interview_qa_difficulty ON interview_qa(difficulty);
 CREATE INDEX IF NOT EXISTS idx_interview_profiles_total_questions ON interview_profiles(total_questions);
--- Seed data with skills
+
+-- Seed example data with skills
 INSERT INTO users (id, email, password_hash)
 VALUES (
   'a0000000-0000-0000-0000-000000000001',
   'a@gmail.com', 
+  crypt('12345678', gen_salt('bf'))
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (id, email, password_hash)
+VALUES (
+  'a0000000-0000-0000-0000-000000000002',
+  'b@gmail.com', 
   crypt('12345678', gen_salt('bf'))
 )
 ON CONFLICT (email) DO NOTHING;
@@ -116,7 +124,7 @@ VALUES (
   'a@gmail.com', 
   4.0, 
   'product manager', 
-  'technical',
+  'Behavioral',
   ARRAY[
     'product roadmapping',
     'agile methodologies',
@@ -130,5 +138,22 @@ VALUES (
     'metrics and KPIs'
   ],
   10
+)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO interview_profiles (user_id, email, years_of_experience, role, interview_type, skills,total_questions)
+VALUES (
+  'a0000000-0000-0000-0000-000000000002',
+  'b@gmail.com', 
+  2.0, 
+  'Machine Learning Engineer', 
+  'Technical',
+  ARRAY[
+    'Linear Regression',
+    'Unsupervised Learning (Clustering)',
+    'Dimensionality Reduction',
+    'Convolutional Neural Networks (CNNs)',
+  ],
+  5
 )
 ON CONFLICT DO NOTHING;
