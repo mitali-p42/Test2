@@ -1,5 +1,7 @@
 // frontend/src/components/VoiceInterview.tsx (UPDATED with Live Transcript)
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+const navigate = useNavigate();
 
 type Props = {
   sessionId: string;
@@ -356,31 +358,33 @@ async function recordTabSwitch() {
     interviewEndedEarlyRef.current = true;
 
     if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
+    cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+  }
 
-    if (transcriptionIntervalRef.current) {
-      clearInterval(transcriptionIntervalRef.current);
-      transcriptionIntervalRef.current = null;
-    }
+  if (transcriptionIntervalRef.current) {
+    clearInterval(transcriptionIntervalRef.current);
+    transcriptionIntervalRef.current = null;
+  }
 
     setIsProcessing(true);
     
     try {
-      // Mark session as completed
-      await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    // Mark session as completed
+    await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      console.log('✅ Interview terminated');
-      onComplete();
-    } catch (err) {
-      console.error('❌ Termination failed:', err);
-      onComplete();
-    }
+    console.log('✅ Interview terminated, navigating to results');
+    // 🆕 Navigate to results page
+    navigate(`/results/${sessionId}`);
+  } catch (err) {
+    console.error('❌ Termination failed:', err);
+    // Still navigate to results
+    navigate(`/results/${sessionId}`);
   }
+}
   useEffect(() => {
     console.log('🔍 Browser capabilities:');
     console.log('  - User Agent:', navigator.userAgent);
@@ -944,24 +948,27 @@ async function recordTabSwitch() {
     }
   }
 
-  async function completeInterview() {
-    try {
-      await speakText(
-        "Thank you for completing the interview! Your responses have been recorded. We'll review them and get back to you soon."
-      );
+  aasync function completeInterview() {
+  try {
+    await speakText(
+      "Thank you for completing the interview! Your responses have been recorded. Let's review your results."
+    );
 
-      await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      console.log('✅ Interview completed');
-      onComplete();
-    } catch (err) {
-      console.error('❌ Complete failed:', err);
-      onComplete();
-    }
+    console.log('✅ Interview completed, navigating to results');
+    
+    // 🆕 Navigate to results page instead of calling onComplete
+    navigate(`/results/${sessionId}`);
+  } catch (err) {
+    console.error('❌ Complete failed:', err);
+    // Still navigate to results even if completion API fails
+    navigate(`/results/${sessionId}`);
   }
+}
 
   async function handleEndInterview() {
     console.log('🛑 Ending interview early...');
@@ -986,8 +993,21 @@ async function recordTabSwitch() {
     }
 
     setIsProcessing(true);
-    await completeInterview();S
+    try {
+    await fetch(`${API_BASE}/interview/sessions/${sessionId}/complete`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    // 🆕 Navigate to results page
+    navigate(`/results/${sessionId}`);
+  } catch (err) {
+    console.error('❌ End interview failed:', err);
+    // Still navigate to results
+    navigate(`/results/${sessionId}`);
   }
+}
+  
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
@@ -1106,7 +1126,7 @@ async function recordTabSwitch() {
         )}
       </div>
 
-      {currentDifficulty && questionNumber > 0 && (
+      {/* {currentDifficulty && questionNumber > 0 && (
         <div style={{ marginBottom: 16, textAlign: 'center' }}>
           <span
             style={{
@@ -1132,7 +1152,7 @@ async function recordTabSwitch() {
             {currentDifficulty === 'easy' ? '🟢 Easy' : currentDifficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
           </span>
         </div>
-      )}
+      )} */}
 
       {currentDifficulty === 'hard' && questionNumber > 0 && !isProcessing && (
         <div
