@@ -1,5 +1,5 @@
 import React from 'react';
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Interview from './pages/Interview';
@@ -8,48 +8,65 @@ import RecruiterCreateCandidate from './pages/RecruiterCreateCandidate';
 import RecruiterCandidates from './pages/RecruiterCandidates';
 import { useAuth } from './auth/AuthContext';
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
-  if (!token) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+function PrivateLayout() {
+  const { token, loading } = useAuth();
+  const location = useLocation();
+  
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
+  
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  return <Outlet />;
 }
 
-function RecruiterRoute({ children }: { children: React.ReactNode }) {
-  const { token, userType } = useAuth();
+function RecruiterLayout() {
+  const { token, userType, loading } = useAuth();
+  const location = useLocation();
   
-  if (!token) return <Navigate to="/login" replace />;
-  if (userType !== 'recruiter') return <Navigate to="/" replace />;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
   
-  return <>{children}</>;
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  if (userType !== 'recruiter') {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <Outlet />;
 }
 
 export const router = createBrowserRouter([
-  { 
-    path: '/', 
-    element: <PrivateRoute><Home /></PrivateRoute> 
+  {
+    element: <PrivateLayout />,
+    children: [
+      { path: '/', element: <Home /> },
+      { path: '/interview', element: <Interview /> },
+      { path: '/results/:sessionId', element: <Results /> },
+    ]
   },
-  { 
-    path: '/interview', 
-    element: <PrivateRoute><Interview /></PrivateRoute> 
+  {
+    path: '/recruiter',
+    element: <RecruiterLayout />,
+    children: [
+      { path: 'create-candidate', element: <RecruiterCreateCandidate /> },
+      { path: 'candidates', element: <RecruiterCandidates /> },
+    ]
   },
-  { 
-    path: '/results/:sessionId', 
-    element: <PrivateRoute><Results /></PrivateRoute> 
-  },
-  { 
-    path: '/recruiter/create-candidate', 
-    element: <RecruiterRoute><RecruiterCreateCandidate /></RecruiterRoute> 
-  },
-  { 
-    path: '/recruiter/candidates', 
-    element: <RecruiterRoute><RecruiterCandidates /></RecruiterRoute> 
-  },
-  { 
-    path: '/login', 
-    element: <Login /> 
-  },
-  { 
-    path: '*', 
-    element: <Navigate to="/" replace /> 
-  },
+  { path: '/login', element: <Login /> },
+  { path: '*', element: <Navigate to="/" replace /> },
 ]);

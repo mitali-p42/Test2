@@ -21,6 +21,7 @@ type AuthContextType = {
   token: string | null;
   user: Me | null;
   userType: UserType | null;
+  loading: boolean; // Add loading state
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, userType: UserType) => Promise<void>;
   logout: () => void;
@@ -32,9 +33,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [user, setUser] = useState<Me | null>(null);
-  const [userType, setUserType] = useState<UserType | null>(null);
+  const [userType, setUserType] = useState<UserType | null>(() => {
+    // Try to get userType from localStorage on initial load
+    return (localStorage.getItem('userType') as UserType) || null;
+  });
+  const [loading, setLoading] = useState<boolean>(!!token); // Add loading state
 
   async function fetchUserData(authToken: string) {
+    setLoading(true);
     try {
       const me = await fetch(`${import.meta.env.VITE_API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -44,18 +50,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userData = await me.json();
         setUser(userData);
         setUserType(userData.userType);
+        localStorage.setItem('userType', userData.userType); // Store userType in localStorage
       } else {
         logout();
       }
     } catch (err) {
       console.error('Failed to fetch user data:', err);
       logout();
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
     if (token) {
       fetchUserData(token);
+    } else {
+      setLoading(false);
     }
   }, [token]);
 
@@ -66,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     
     localStorage.setItem('token', data.access_token);
+    localStorage.setItem('userType', data.userType); // Store userType
     setToken(data.access_token);
     setUserType(data.userType);
   }
@@ -77,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     
     localStorage.setItem('token', data.access_token);
+    localStorage.setItem('userType', data.userType); // Store userType
     setToken(data.access_token);
     setUserType(data.userType);
   }
@@ -89,13 +102,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function logout() {
     localStorage.removeItem('token');
+    localStorage.removeItem('userType'); // Remove userType from localStorage
     setToken(null);
     setUser(null);
     setUserType(null);
   }
 
   return (
-    <AuthContext.Provider value={{ token, user, userType, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ token, user, userType, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
