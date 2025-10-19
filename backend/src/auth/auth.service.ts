@@ -34,7 +34,29 @@ export class AuthService {
 
   async me(userId: string) {
     const user = await this.users.findByIdWithProfile(userId);
+   
     if (!user) {
+      
+      // Fall back to basic user lookup
+      const basicUser = await this.users.findById(userId);
+      
+      if (basicUser) {
+        return {
+          id: basicUser.id,
+          email: basicUser.email,
+          createdAt: basicUser.createdAt,
+          userType: basicUser.userType,
+          role: '—',
+          interviewType: '—',
+          yearsOfExperience: '—',
+          skills: [],
+          totalQuestions: 5,
+          companyName: null,
+          hasProfile: false,
+        };
+      }
+      
+      // User truly doesn't exist
       return {
         id: null,
         email: null,
@@ -51,6 +73,7 @@ export class AuthService {
     }
 
     const hasProfile = !!(user.role || user.interviewType);
+    console.log('✅ Returning user data with hasProfile:', hasProfile);
 
     return {
       id: user.id,

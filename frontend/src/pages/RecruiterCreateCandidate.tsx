@@ -87,7 +87,7 @@ export default function RecruiterCreateCandidate() {
     <div style={{ padding: 24, maxWidth: 680, margin: '0 auto' }}>
       <div style={{ marginBottom: 24 }}>
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/recruiter/candidates')}
           style={{
             padding: '8px 14px',
             background: '#f3f4f6',
@@ -168,7 +168,7 @@ export default function RecruiterCreateCandidate() {
               required
               value={formData.companyName}
               onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              placeholder="Acme Inc."
+              placeholder="ABC Inc."
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -229,8 +229,8 @@ export default function RecruiterCreateCandidate() {
             <input
               type="number"
               min="0"
-              max="50"
-              step="0.5"
+              max="60"
+              step="1"
               value={formData.yearsOfExperience}
               onChange={(e) => setFormData({ ...formData, yearsOfExperience: Number(e.target.value) })}
               style={{
@@ -290,7 +290,7 @@ export default function RecruiterCreateCandidate() {
           <div style={{ display: 'flex', gap: 12 }}>
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/recruiter/candidates')}
               style={{
                 padding: '12px 24px',
                 background: '#f3f4f6',

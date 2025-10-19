@@ -12,6 +12,16 @@ type Profile = {
   hasProfile?: boolean;
 };
 
+function getUserTypeFromToken(token: string | null): 'candidate' | 'recruiter' | null {
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] || ''));
+    return payload?.userType || null;
+  } catch {
+    return null;
+  }
+}
+
 function getEmailFromToken(token: string | null): string | undefined {
   if (!token) return undefined;
   try {
@@ -36,14 +46,18 @@ export default function Home() {
     hasProfile: false,
   });
   
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [requestingMic, setRequestingMic] = useState(false);
   const [permissionState, setPermissionState] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [hasMicDevice, setHasMicDevice] = useState<boolean | null>(null);
   const [httpsOk] = useState<boolean>(window.location.protocol === 'https:');
   const [readyChecked, setReadyChecked] = useState(false);
 
-  const token = useMemo(() => localStorage.getItem('token') ?? '', [user?.email]);
+  const token = useMemo(() => localStorage.getItem('token') ?? '', []);
+  
+  // Get userType from token immediately - don't wait for auth to load
+  const tokenUserType = useMemo(() => getUserTypeFromToken(token), [token]);
+  
   const resolvedEmail = useMemo(
     () => user?.email || getEmailFromToken(token) || '',
     [user?.email, token]
@@ -97,22 +111,26 @@ export default function Home() {
 
   // Fetch profile - ONLY for candidates
   useEffect(() => {
-    // Wait until we know the userType
-    if (userType === null) {
-      return; // Don't do anything yet
-    }
-
-    // Skip fetching profile if user is a recruiter
-    if (userType === 'recruiter') {
-      setLoading(false);
+    // Check token userType first - if recruiter, skip immediately
+    if (tokenUserType === 'recruiter') {
       return;
     }
 
-    if (!token) return;
+    // If not a candidate, don't fetch
+    if (tokenUserType !== 'candidate') {
+      return;
+      return;
+    }
+
+    if (!token) {
+      return;
+    }
+
     let cancelled = false;
 
     (async () => {
-      setLoading(true);
+      setProfileLoading(true);
+      
       try {
         const res = await fetch(`${import.meta.env.VITE_API_BASE}/interview-profile/me`, {
           headers: {
@@ -121,32 +139,64 @@ export default function Home() {
           },
         });
 
+        console.log('📡 Profile fetch response:', res.status);
+
         const text = await res.text();
         const data = text ? JSON.parse(text) : {};
 
-        if (!cancelled && res.ok) {
-          const d = data;
-          setProfile({
-            role: d.role ?? '—',
-            interviewType: d.interviewType ?? d.interview_type ?? '—',
-            yearsOfExperience: d.yearsOfExperience ?? d.years_of_experience ?? '—',
-            skills: d.skills ?? [],
-            totalQuestions: d.totalQuestions ?? 5,
-            companyName: d.companyName ?? null,
-            hasProfile: d.role !== '—' && d.role !== null,
-          });
+        if (!cancelled) {
+          if (res.ok) {
+            const d = data;
+            const hasActualProfile = d.role && d.role !== '—' && d.interviewType && d.interviewType !== '—';
+            
+            const profileData = {
+              role: d.role ?? '—',
+              interviewType: d.interviewType ?? d.interview_type ?? '—',
+              yearsOfExperience: d.yearsOfExperience ?? d.years_of_experience ?? '—',
+              skills: d.skills ?? [],
+              totalQuestions: d.totalQuestions ?? 5,
+              companyName: d.companyName ?? null,
+              hasProfile: hasActualProfile,
+            };
+            console.log('✅ Profile loaded:', hasActualProfile ? 'HAS PROFILE' : 'NO PROFILE');
+            setProfile(profileData);
+          } else {
+            console.log('📭 No profile found');
+            setProfile({
+              role: '—',
+              interviewType: '—',
+              yearsOfExperience: '—',
+              skills: [],
+              totalQuestions: 5,
+              companyName: null,
+              hasProfile: false,
+            });
+          }
         }
       } catch (err) {
-        if (!cancelled) console.error('Error fetching profile:', err);
+        if (!cancelled) {
+          console.error('❌ Error fetching profile:', err);
+          setProfile({
+            role: '—',
+            interviewType: '—',
+            yearsOfExperience: '—',
+            skills: [],
+            totalQuestions: 5,
+            companyName: null,
+            hasProfile: false,
+          });
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [token, userType]);
+  }, [token, tokenUserType]);
 
   async function handleConfirm() {
     setRequestingMic(true);
@@ -185,7 +235,30 @@ export default function Home() {
   const initial = (resolvedEmail || '?').charAt(0).toUpperCase();
   const startDisabled = requestingMic || !readyChecked || hasMicDevice === false || permissionState === 'denied';
 
-  // Show loading state while auth is still loading
+  // CHECK RECRUITER - redirect to create candidate page immediately
+  const isRecruiter = tokenUserType === 'recruiter' || userType === 'recruiter';
+  
+  useEffect(() => {
+    // Don't wait for auth to fully load if token shows recruiter
+    if (tokenUserType === 'recruiter') {
+      console.log('👔 Token shows recruiter, redirecting to create candidate');
+      navigate('/recruiter/create-candidate', { replace: true });
+    } else if (isRecruiter && !authLoading) {
+      console.log('👔 Auth confirmed recruiter, redirecting to create candidate');
+      navigate('/recruiter/create-candidate', { replace: true });
+    }
+  }, [isRecruiter, tokenUserType, authLoading, navigate]);
+
+  // If recruiter, show brief loading while redirecting
+  if (isRecruiter || tokenUserType === 'recruiter') {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <p style={{ color: '#6b7280' }}>Redirecting to create candidate...</p>
+      </div>
+    );
+  }
+
+  // Show loading while auth loads (but only for non-recruiters)
   if (authLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -207,102 +280,8 @@ export default function Home() {
     );
   }
 
-  // CHECK RECRUITER FIRST
-  if (userType === 'recruiter') {
-    return (
-      <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
-        {/* Top bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: '#1f2937',
-                color: '#fff',
-                display: 'grid',
-                placeItems: 'center',
-                fontWeight: 700,
-                fontSize: 14
-              }}
-            >
-              {initial}
-            </div>
-            <div style={{ fontSize: 14, color: '#374151' }}>
-              <strong>Logged in as:</strong> {resolvedEmail || '—'} (Recruiter)
-            </div>
-          </div>
-          <button 
-            onClick={logout} 
-            style={{ 
-              padding: '8px 14px', 
-              background: '#f3f4f6', 
-              border: '1px solid #d1d5db', 
-              borderRadius: 8, 
-              cursor: 'pointer' 
-            }}
-          >
-            Logout
-          </button>
-        </div>
-
-        <h1>Recruiter Dashboard</h1>
-
-        <div style={{
-          padding: 24,
-          background: '#eff6ff',
-          border: '1px solid #bae6fd',
-          borderRadius: 12,
-          marginBottom: 24,
-        }}>
-          <h2 style={{ marginTop: 0 }}>💼 Create Candidate Profile</h2>
-          <p style={{ color: '#374151', marginBottom: 16 }}>
-            Create interview profiles for candidates. They'll receive access to their personalized interview.
-          </p>
-          <button
-            onClick={() => navigate('/recruiter/create-candidate')}
-            style={{
-              padding: '12px 24px',
-              background: '#3b82f6',
-              color: 'white',
-              border: 0,
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            + Create New Candidate
-          </button>
-        </div>
-
-        <div style={{
-          padding: 24,
-          background: 'white',
-          border: '1px solid #e5e7eb',
-          borderRadius: 12,
-        }}>
-          <h2 style={{ marginTop: 0 }}>📊 My Candidates</h2>
-          <button
-            onClick={() => navigate('/recruiter/candidates')}
-            style={{
-              padding: '10px 20px',
-              background: '#f3f4f6',
-              border: '1px solid #d1d5db',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}
-          >
-            View All Candidates
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Candidate without profile (ONLY checked if NOT recruiter)
-  if (!loading && !profile.hasProfile) {
+  // Candidate without profile
+  if (!profileLoading && !profile.hasProfile) {
     return (
       <div style={{ padding: 24, maxWidth: 680, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -359,10 +338,9 @@ export default function Home() {
     );
   }
 
-  // Candidate with profile (ONLY if NOT recruiter)
+  // Candidate with profile
   return (
     <div style={{ padding: 24, maxWidth: 680, margin: '0 auto' }}>
-      {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div
@@ -391,7 +369,6 @@ export default function Home() {
 
       <h1>Welcome{resolvedEmail ? `, ${resolvedEmail}` : ''}.</h1>
 
-      {/* Environment checks */}
       <div style={{ marginBottom: 16, padding: 16, border: '1px solid #e5e7eb', borderRadius: 12, background: '#ffffff' }}>
         <h2 style={{ marginTop: 0 }}>Before you start</h2>
         <div style={{ marginTop: 12, padding: 12, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
@@ -408,10 +385,9 @@ export default function Home() {
         </label>
       </div>
 
-      {/* Interview Details */}
       <div style={{ marginTop: 16, padding: 16, border: '1px solid #e5e7eb', borderRadius: 12, background: '#fafafa' }}>
         <h2 style={{ marginTop: 0 }}>Interview Details</h2>
-        {loading ? (
+        {profileLoading ? (
           <p>Loading...</p>
         ) : (
           <>
