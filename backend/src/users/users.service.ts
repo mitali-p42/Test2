@@ -17,13 +17,12 @@ export class UsersService {
   }
 
   async create(email: string, passwordHash: string): Promise<User> {
-    const user = this.repo.create({ email, passwordHash }); // OK: entity prop
+    const user = this.repo.create({ email, passwordHash });
     return this.repo.save(user);
   }
 
-  // ✅ Add this: return user + interview profile fields
+  // ✅ Updated to include totalQuestions
   async findByIdWithProfile(id: string) {
-    // Use aliases + AS to map snake_case to nice camelCase keys
     return this.repo
       .createQueryBuilder('u')
       .leftJoin('interview_profiles', 'ip', 'ip.user_id = u.id')
@@ -35,6 +34,8 @@ export class UsersService {
         'ip.role AS role',
         'ip.interview_type AS "interviewType"',
         'ip.years_of_experience AS "yearsOfExperience"',
+        'ip.skills AS skills', // 🆕 Add skills
+        'ip.total_questions AS "totalQuestions"', // 🆕 Add totalQuestions
       ])
       .getRawOne<{
         id: string;
@@ -43,6 +44,8 @@ export class UsersService {
         role: string | null;
         interviewType: string | null;
         yearsOfExperience: number | null;
+        skills: string[] | null;
+        totalQuestions: number | null; // 🆕 Add to type
       }>();
   }
 }

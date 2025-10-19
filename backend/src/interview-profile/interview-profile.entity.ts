@@ -38,6 +38,15 @@ export class InterviewProfile {
   })
   yearsOfExperience!: number | null;
 
+  // 🆕 ADD THIS FIELD
+  @Column({ 
+    name: 'total_questions', 
+    type: 'int', 
+    default: 5,
+    nullable: true 
+  })
+  totalQuestions!: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

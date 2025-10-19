@@ -1,3 +1,4 @@
+// src/interview-profile/interview-profile.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,5 +13,47 @@ export class InterviewProfileService {
 
   async getProfileForUser(userId: string) {
     return await this.repo.findOne({ where: { userId } });
+  }
+
+  // 🆕 ADD THIS METHOD to create/update profile with total questions
+  async upsertProfile(
+    userId: string,
+    email: string,
+    data: {
+      role?: string;
+      interviewType?: string;
+      yearsOfExperience?: number;
+      skills?: string[];
+      totalQuestions?: number; // 🆕 Add this parameter
+    }
+  ) {
+    const existing = await this.repo.findOne({ where: { userId } });
+
+    if (existing) {
+      // Update existing profile
+      await this.repo.update(
+        { userId },
+        {
+          role: data.role,
+          interviewType: data.interviewType,
+          yearsOfExperience: data.yearsOfExperience,
+          skills: data.skills,
+          totalQuestions: data.totalQuestions ?? existing.totalQuestions, // 🆕 Update if provided
+        }
+      );
+      return this.repo.findOne({ where: { userId } });
+    } else {
+      // Create new profile
+      const profile = this.repo.create({
+        userId,
+        email,
+        role: data.role,
+        interviewType: data.interviewType,
+        yearsOfExperience: data.yearsOfExperience,
+        skills: data.skills || [],
+        totalQuestions: data.totalQuestions ?? 5, // 🆕 Default to 5
+      });
+      return this.repo.save(profile);
+    }
   }
 }
