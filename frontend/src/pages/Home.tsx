@@ -23,7 +23,7 @@ function getEmailFromToken(token: string | null): string | undefined {
 }
 
 export default function Home() {
-  const { user, logout, userType } = useAuth();
+  const { user, logout, userType, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState<Profile>({
@@ -95,8 +95,19 @@ export default function Home() {
     };
   }, []);
 
-  // Fetch profile
+  // Fetch profile - ONLY for candidates
   useEffect(() => {
+    // Wait until we know the userType
+    if (userType === null) {
+      return; // Don't do anything yet
+    }
+
+    // Skip fetching profile if user is a recruiter
+    if (userType === 'recruiter') {
+      setLoading(false);
+      return;
+    }
+
     if (!token) return;
     let cancelled = false;
 
@@ -135,7 +146,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, userType]);
 
   async function handleConfirm() {
     setRequestingMic(true);
@@ -174,7 +185,29 @@ export default function Home() {
   const initial = (resolvedEmail || '?').charAt(0).toUpperCase();
   const startDisabled = requestingMic || !readyChecked || hasMicDevice === false || permissionState === 'denied';
 
-  // 🆕 Recruiter Dashboard
+  // Show loading state while auth is still loading
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div style={{
+          width: 40,
+          height: 40,
+          border: '4px solid #e5e7eb',
+          borderTop: '4px solid #3b82f6',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+        }} />
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // CHECK RECRUITER FIRST
   if (userType === 'recruiter') {
     return (
       <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
@@ -268,7 +301,7 @@ export default function Home() {
     );
   }
 
-  // 🆕 Candidate without profile
+  // Candidate without profile (ONLY checked if NOT recruiter)
   if (!loading && !profile.hasProfile) {
     return (
       <div style={{ padding: 24, maxWidth: 680, margin: '0 auto' }}>
@@ -326,7 +359,7 @@ export default function Home() {
     );
   }
 
-  // 🆕 Candidate with profile (existing flow)
+  // Candidate with profile (ONLY if NOT recruiter)
   return (
     <div style={{ padding: 24, maxWidth: 680, margin: '0 auto' }}>
       {/* Top bar */}
