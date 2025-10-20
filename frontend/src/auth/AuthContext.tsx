@@ -41,6 +41,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function fetchUserData(authToken: string) {
     console.log('🔐 Fetching user data with token...');
+    
+    // ✅ CRITICAL: Clear old user data FIRST
+    setUser(null);
+    
     setLoading(true);
     
     try {
@@ -78,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         
-        // ✅ FIX: Set user and userType together
+        // ✅ Set user and userType together
         setUser(userData);
         setUserType(userData.userType || tokenUserType);
         
@@ -117,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       console.log('⏭️ No token found, skipping user fetch');
       setLoading(false);
-      // ✅ FIX: Clear user when token is null
+      // ✅ Clear user when token is null
       setUser(null);
       setUserType(null);
     }
@@ -126,21 +130,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(email: string, password: string) {
     console.log('🔐 Logging in as:', email);
     
-    // ✅ FIX: Clear everything first
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    setToken(null);
+    // ✅ Clear everything first - INCLUDING user state immediately
     setUser(null);
     setUserType(null);
+    setToken(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('userType');
+    
+    // ✅ Small delay to ensure React state updates
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     const data = await api<{ access_token: string; userType: UserType }>(`/auth/login`, {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
 
-    console.log('✅ Login successful, setting new token');
+    console.log('✅ Login successful for:', email);
     
-    // ✅ FIX: Set token last to trigger useEffect with clean state
+    // ✅ Set token last to trigger useEffect with clean state
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('userType', data.userType);
     setUserType(data.userType);
@@ -151,11 +158,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('📝 Registering as:', email, userType);
     
     // Clear any existing auth data first
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    setToken(null);
     setUser(null);
     setUserType(null);
+    setToken(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('userType');
+    
+    // Small delay to ensure React state updates
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     const data = await api<{ access_token: string; userType: UserType }>(`/auth/register`, {
       method: 'POST',

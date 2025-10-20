@@ -19,11 +19,10 @@ export default function Login() {
     if (token && user) {
       console.log('✅ Login complete, redirecting...', { email: user.email, userType: user.userType });
       
-      // ✅ FIX: Force a full page reload to refresh all components
-      window.location.href = '/';
-      
-      // Alternative if you don't want full reload:
-      // nav('/', { replace: true });
+      // ✅ FORCE full page reload to clear ALL state
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
     }
   }, [token, user, nav]);
 
