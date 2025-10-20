@@ -1,4 +1,3 @@
-//Login.tsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -13,23 +12,39 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
-  const { login, register, token } = useAuth();
+  const { login, register, token, user } = useAuth();
 
   useEffect(() => {
-    if (token) nav('/');
-  }, [token, nav]);
+    // Only redirect if we have both token AND user data
+    if (token && user) {
+      console.log('✅ Login complete, redirecting...', { email: user.email, userType: user.userType });
+      
+      // ✅ FIX: Force a full page reload to refresh all components
+      window.location.href = '/';
+      
+      // Alternative if you don't want full reload:
+      // nav('/', { replace: true });
+    }
+  }, [token, user, nav]);
 
   async function onSubmit(email: string, password: string) {
     setError(null);
     setLoading(true);
     
     try {
+      console.log(`🔐 Attempting ${mode}:`, email);
+      
       if (mode === 'login') {
         await login(email, password);
       } else {
         await register(email, password, userType);
       }
+      
+      // The useEffect will handle navigation once user data is loaded
+      console.log('✅ Auth request successful, waiting for user data...');
+      
     } catch (err: any) {
+      console.error('❌ Auth error:', err);
       let msg = 'Something went wrong';
       
       // Handle error message extraction
@@ -43,9 +58,9 @@ export default function Login() {
       }
       
       setError(msg);
-    } finally {
       setLoading(false);
     }
+    // Don't set loading false here - let it stay true until redirect
   }
 
   return (

@@ -1,11 +1,27 @@
-//RecruiterCreateCandidate.tsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
+function getEmailFromToken(token: string | null): string | undefined {
+  if (!token) return undefined;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] || ''));
+    return payload?.email || payload?.sub || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function RecruiterCreateCandidate() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user, logout } = useAuth();
+
+  const resolvedEmail = useMemo(
+    () => user?.email || getEmailFromToken(token) || '',
+    [user?.email, token]
+  );
+
+  const initial = (resolvedEmail || '?').charAt(0).toUpperCase();
 
   const [formData, setFormData] = useState({
     candidateEmail: '',
@@ -60,7 +76,6 @@ export default function RecruiterCreateCandidate() {
 
       setSuccess(true);
       
-      // Reset form
       setFormData({
         candidateEmail: '',
         role: '',
@@ -71,7 +86,6 @@ export default function RecruiterCreateCandidate() {
         companyName: '',
       });
 
-      // Redirect after 2 seconds
       setTimeout(() => {
         navigate('/recruiter/candidates');
       }, 2000);
@@ -85,6 +99,42 @@ export default function RecruiterCreateCandidate() {
 
   return (
     <div style={{ padding: 24, maxWidth: 680, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: '#1f2937',
+              color: '#fff',
+              display: 'grid',
+              placeItems: 'center',
+              fontWeight: 700,
+              fontSize: 14
+            }}
+          >
+            {initial}
+          </div>
+          <div style={{ fontSize: 14, color: '#374151' }}>
+            <strong>Logged in as:</strong> {resolvedEmail || '—'} (Recruiter)
+          </div>
+        </div>
+        <button 
+          onClick={logout} 
+          style={{ 
+            padding: '8px 14px', 
+            background: '#f3f4f6', 
+            border: '1px solid #d1d5db', 
+            borderRadius: 8, 
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          Logout
+        </button>
+      </div>
+
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={() => navigate('/recruiter/candidates')}
@@ -97,7 +147,7 @@ export default function RecruiterCreateCandidate() {
             fontWeight: 500,
           }}
         >
-          ← Back to Dashboard
+          ← View All Candidates
         </button>
       </div>
 
@@ -168,7 +218,7 @@ export default function RecruiterCreateCandidate() {
               required
               value={formData.companyName}
               onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              placeholder="ABC Inc."
+              placeholder="Acme Inc."
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -229,8 +279,8 @@ export default function RecruiterCreateCandidate() {
             <input
               type="number"
               min="0"
-              max="60"
-              step="1"
+              max="50"
+              step="0.5"
               value={formData.yearsOfExperience}
               onChange={(e) => setFormData({ ...formData, yearsOfExperience: Number(e.target.value) })}
               style={{

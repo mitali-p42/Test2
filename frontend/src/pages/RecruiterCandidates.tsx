@@ -1,5 +1,4 @@
-// RecruiterCandidates.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
@@ -13,9 +12,25 @@ type Candidate = {
   createdAt: string;
 };
 
+function getEmailFromToken(token: string | null): string | undefined {
+  if (!token) return undefined;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] || ''));
+    return payload?.email || payload?.sub || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function RecruiterCandidates() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user, logout } = useAuth();
+
+  const resolvedEmail = useMemo(
+    () => user?.email || getEmailFromToken(token) || '',
+    [user?.email, token]
+  );
+  const initial = (resolvedEmail || '?').charAt(0).toUpperCase();
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,10 +106,48 @@ export default function RecruiterCandidates() {
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+      {/* Top bar with logout */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: '#1f2937',
+              color: '#fff',
+              display: 'grid',
+              placeItems: 'center',
+              fontWeight: 700,
+              fontSize: 14
+            }}
+          >
+            {initial}
+          </div>
+          <div style={{ fontSize: 14, color: '#374151' }}>
+            <strong>Logged in as:</strong> {resolvedEmail || '—'} (Recruiter)
+          </div>
+        </div>
+        <button 
+          onClick={logout} 
+          style={{ 
+            padding: '8px 14px', 
+            background: '#f3f4f6', 
+            border: '1px solid #d1d5db', 
+            borderRadius: 8, 
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* Navigation buttons */}
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/recruiter/create-candidate')}
             style={{
               padding: '8px 14px',
               background: '#f3f4f6',
@@ -104,7 +157,7 @@ export default function RecruiterCandidates() {
               fontWeight: 500,
             }}
           >
-            ← Back to Dashboard
+            ← Back to Create Candidate
           </button>
         </div>
         <button
