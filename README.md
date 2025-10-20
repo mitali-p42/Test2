@@ -25,6 +25,7 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 - **🔊 Natural Voice Prompts** - Text-to-speech with OpenAI's voice synthesis
 - **💡 Smart Hints** - Context-aware guidance for challenging (hard-level) questions. If the evaluation agent evaluates the difficulty level of a question as hard, hint is displayed for the user and is logged if the user clicks on it.
 - **📊 Multi-Agent Evaluation** - Technical, communication, and role-specific assessments
+- **⚠️ Anti-Cheating System** - Tab switch detection with 3-strike termination of interview
 
 ### Intelligence & Analysis
 - **Adaptive Difficulty** - Questions scaled to experience level (easy/medium/hard)
@@ -96,7 +97,7 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 ```bash
 # Clone the repository
 git clone https://github.com/mitali-p42/Interview-Agent.git
-cd ai-interview-platform
+cd Interview-Agent
 
 # Configure backend environment
 cd backend
