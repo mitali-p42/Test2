@@ -2,7 +2,7 @@
 
 REST API reference for the AI Interview Platform.
 
-**Base URL:** `http://localhost:3000`  
+**Frontend URL:** `http://localhost:5173`  
 **Auth:** All endpoints require JWT token in `Authorization: Bearer <token>` header
 
 ---
@@ -489,12 +489,3 @@ curl -X POST /interview/sessions/$SESSION_ID/submit-answer \
 curl /interview/sessions/$SESSION_ID/results \
   -H "Authorization: Bearer $TOKEN"
 ```
-
----
-
-## Notes
-
-- All timestamps in ISO 8601 format (UTC)
-- UUIDs for session/user/question IDs
-- Scores range 0-100
-- Audio returned as base64 in JSON responses

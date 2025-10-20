@@ -218,7 +218,7 @@ export default function RecruiterCreateCandidate() {
               required
               value={formData.companyName}
               onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              placeholder="Acme Inc."
+              placeholder="ABC Inc."
               style={{
                 width: '100%',
                 padding: '10px 12px',

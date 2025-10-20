@@ -2,34 +2,47 @@
 
 A full-stack voice-based interview system with real-time speech recognition, AI-powered evaluation, and comprehensive performance analytics.
 
+---
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Architecture](#️-architecture)
+- [Quick Start](#-quick-start)
+- [Documentation](#-documentation)
+- [Tech Stack](#-tech-stack)
+- [Security](#️-security)
+- [Interview Flow](#-interview-flow)
+- [Resources](#-resources)
+
+---
+
 ## 🌟 Features
 
-### Core Functionality
-- **🎙️ Voice-Based Interviews**: Real-time speech-to-text with browser-native recognition
-- **🤖 AI Question Generation**: Dynamic questions using Groq's LLaMA 3.3 70B model
-- **📊 Multi-Agent Evaluation**: Technical, communication, and role-specific assessments
-- **🔊 Text-to-Speech**: Natural voice prompts using OpenAI TTS
-- **💡 Smart Hints**: Context-aware hints for hard difficulty questions
-- **🎯 Skills Tracking**: Monitors which skills are tested across questions
-- **🚨 Anti-Cheating**: Tab switch detection with 3-strike termination
-- **📈 Detailed Analytics**: Comprehensive performance breakdowns with skill-specific insights
+### Interview Experience
+- **🎙️ Real-Time Voice Recording** - Browser-native speech recognition with live transcription
+- **🤖 AI Question Generation** - Dynamic, role and experience level specific questions using LLaMA 3.3 70B. With good diversity between Interview categories and difficulty levels. The skills fed by the recruiters are used to prepare the questions as well.
+- **🔊 Natural Voice Prompts** - Text-to-speech with OpenAI's voice synthesis
+- **💡 Smart Hints** - Context-aware guidance for challenging (hard-level) questions. If the evaluation agent evaluates the difficulty level of a question as hard, hint is displayed for the user and is logged if the user clicks on it.
+- **📊 Multi-Agent Evaluation** - Technical, communication, and role-specific assessments
 
-### Security & Authentication
-- **JWT-based authentication** with secure password hashing (bcrypt)
-- **Protected routes** and role-based access control
-- **Session management** with PostgreSQL persistence
-
-### Interview Intelligence
-- **Adaptive Difficulty**: Questions scaled to experience level (easy/medium/hard)
-- **Silence Detection**: Auto-stops recording after 6 seconds of silence
-- **Real-Time Transcription**: Live transcript display during recording
-- **Comprehensive Scoring**: 6 evaluation dimensions per answer
+### Intelligence & Analysis
+- **Adaptive Difficulty** - Questions scaled to experience level (easy/medium/hard)
+- **Skills Tracking** - Monitors which competencies are tested across questions
+- **Comprehensive Scoring** - 6-dimensional evaluation per answer:
   - Overall Score
   - Technical Accuracy
   - Communication Clarity
   - Depth of Knowledge
   - Problem-Solving Approach
   - Role Relevance
+- **Detailed Analytics** - Performance breakdowns with skill-specific insights
+
+### Security & Integrity
+- **JWT Authentication** - Secure token-based auth with bcrypt password hashing
+- **Anti-Cheating System** - Tab switch detection with 3-strike termination
+- **Session Management** - Server-side validation with PostgreSQL persistence
+- **Protected Routes** - Role-based access control
 
 ---
 
@@ -37,15 +50,15 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Frontend (React)                         │
+│                     Frontend (React + TypeScript)               │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │   Login/     │  │   Profile    │  │   Voice      │           │
 │  │   Register   │→ │   Setup      │→ │   Interview  │→ Results  │
 │  └──────────────┘  └──────────────┘  └──────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
-                              ↓ HTTP/JSON + JWT
+                              ↓ REST API + JWT
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Backend API (NestJS)                         │
+│                    Backend (NestJS + TypeORM)                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │     Auth     │  │   Profile    │  │   Interview  │           │
 │  │   Service    │  │   Service    │  │   Service    │           │
@@ -53,7 +66,7 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 │                              ↓                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │  AI Service  │  │   STT/TTS    │  │  Multi-Agent │           │
-│  │  (Groq API)  │  │   (OpenAI)   │  │  Evaluator   │           │
+│  │  (Groq)      │  │   (OpenAI)   │  │  Evaluator   │           │
 │  └──────────────┘  └──────────────┘  └──────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
                               ↓ TypeORM
@@ -70,240 +83,149 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - **Node.js** 18+
 - **PostgreSQL** 13+
-- **Docker & Docker Compose** (optional)
+- **Docker & Docker Compose** (optional but recommended)
 - **API Keys**:
-  - Groq API key ([groq.com](https://groq.com))
-  - OpenAI API key ([platform.openai.com](https://platform.openai.com))
+  - [Groq API key](https://console.groq.com) - For AI question generation & transcription
+  - [OpenAI API key](https://platform.openai.com) - For text-to-speech
 
-### Installation
+### Option 1: Docker (Recommended)
 
-#### Option 1: Docker (Recommended)
 ```bash
-# Clone repository
-git clone <repository-url>
+# Clone the repository
+git clone https://github.com/mitali-p42/Interview-Agent.git
+cd ai-interview-platform
 
-# Configure environment
+# Configure backend environment
 cd backend
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys (see below)
 
+# Configure frontend environment
 cd ../frontend
 cp .env.example .env
 
-# Start services
+# Start all services
+cd ..
 docker-compose up -d
 
-# Access application
+# Access the application
 # Frontend: http://localhost:5173
-# Backend: http://localhost:4000
-# PostgreSQL: localhost:5432
+# Backend:  http://localhost:4000
+# Database: localhost:5432
 ```
 
-#### Option 2: Manual Setup
-```bash
-# 1. Start PostgreSQL
-# Ensure PostgreSQL is running on port 5432
-
-# 2. Setup Backend
-cd backend
-cp .env.example .env
-# Edit .env with database URL and API keys
-npm install
-npm run start:dev
-
-# 3. Setup Frontend
-cd ../frontend
-cp .env.example .env
-npm install
-npm run dev
-```
-
-### Environment Variables
+### Environment Configuration
 
 **backend/.env**
 ```env
+# Database
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/jwt_auth_starter
-JWT_SECRET=your_secure_secret_here
+
+# Authentication
+JWT_SECRET=your_secure_random_string_here
 JWT_EXPIRES_IN=1d
+
+# Server
 PORT=4000
-GROQ_API_KEY=your_groq_api_key
-OPENAI_API_KEY=your_openai_api_key
+
+# AI Services (Required)
+GROQ_API_KEY=gsk_your_groq_api_key_here
+OPENAI_API_KEY=sk-your_openai_api_key_here
 ```
 
 **frontend/.env**
 ```env
 VITE_API_BASE=http://localhost:4000
 ```
-### Multi-Agent Architecture
 
-The platform uses three specialized AI agents for comprehensive evaluation:
+### First Time Setup
 
-#### 1. Technical Agent
-- Evaluates technical accuracy and depth
-- Assesses problem-solving methodology
-- Identifies technical gaps and red flags
-- Scores: `technicalAccuracy`, `depthOfKnowledge`, `problemSolvingApproach`
-
-#### 2. Communication Agent
-- Analyzes clarity and structure
-- Evaluates conciseness and articulation
-- Provides communication feedback
-- Scores: `communicationClarity`
-
-#### 3. Role-Specific Agent
-- Assesses relevance to target role
-- Evaluates experience alignment
-- Generates follow-up questions
-- Scores: `relevanceToRole`
-
-### Scoring Dimensions
-
-Each answer receives scores (0-100) across 6 dimensions:
-
-| Dimension | Weight | Description |
-|-----------|--------|-------------|
-| **Overall** | 100% | Composite score |
-| **Technical Accuracy** | 30% | Correctness and depth |
-| **Communication** | 15% | Clarity and structure |
-| **Knowledge Depth** | 20% | Understanding level |
-| **Problem Solving** | 15% | Analytical approach |
-| **Role Relevance** | 20% | Job fit assessment |
-
-
-## 🛡️ Security Features
-
-- **JWT Authentication**: Secure token-based auth with configurable expiration
-- **Password Hashing**: bcrypt with 12 rounds
-- **Tab Switch Detection**: Automatic termination after 3 violations
-- **Session Management**: Tracked and validated server-side
-- **CORS Protection**: Configured for trusted origins only
-- **SQL Injection Prevention**: TypeORM parameterized queries
+1. **Register a new account** at `http://localhost:5173/register`
+2. **Complete your profile** - role, skills, experience level
+3. **Start your first interview** with 5 sample questions
 
 ---
 
-## 🎯 Key Features Explained
+## 📚 Documentation
 
-### Real-Time Transcription
-- Browser-native Speech Recognition API
-- Live transcript display during recording
-- Final server-side transcription via Groq Whisper
+| Document | Description |
+|----------|-------------|
+| **[API Reference](./docs/API.md)** | Complete REST API documentation with examples |
+| **[AI Configuration](./docs/AI_SDK.md)** | Groq & OpenAI setup, models, and optimization |
+| **[Database Schema](./docs/DATABASE.md)** | Schema design and query examples |
 
-### Silence Detection
-- Analyzes audio levels in real-time
-- Auto-stops recording after 6 seconds of silence
-- Minimum 2-second recording requirement
+### Key Concepts
 
-### Hint System
-- Available only for **hard** difficulty questions
-- Provides context without giving answers
-- Includes example considerations
-
-### Skills Tracking
-- Maps questions to tested skills
-- Identifies untested skills
-- Generates skill-specific performance reports
+- **[Multi-Agent Evaluation](./docs/AI_SDK.md#multi-agent-evaluation)** - How three specialized AI agents score answers
+- **[Question Generation Agent](./docs/AI_SDK.md#question-generation)** - Adaptive difficulty and skill targeting
+- **[Session Management](./docs/API.md#sessions)** - Creating and tracking interview sessions
+- **[Results Analysis](./docs/API.md#get-session-results)** - Understanding performance metrics
 
 ---
 
 ## 🔧 Tech Stack
 
 ### Frontend
-- **React 18** with TypeScript
-- **React Router** for navigation
-- **Vite** for blazing-fast builds
-- **Web Speech API** for real-time transcription
+- **React 18** with TypeScript - Modern UI with type safety
+- **React Router** - Client-side routing
+- **Vite** - Lightning-fast development builds
+- **Web Speech API** - Real-time browser transcription
 
 ### Backend
-- **NestJS** framework
-- **TypeORM** for database management
-- **Passport JWT** for authentication
-- **Class Validator** for input validation
+- **NestJS** - Scalable Node.js framework
+- **TypeORM** - Type-safe database operations
+- **Passport JWT** - Secure authentication
+- **Class Validator** - Request validation
 
 ### AI & ML
-- **Groq API** (LLaMA 3.3 70B) for question generation & evaluation
-- **OpenAI API** for text-to-speech
-- **Whisper Large V3 Turbo** for speech-to-text
+- **Groq API** - LLaMA 3.3 70B for question generation & evaluation
+- **Whisper Large V3 Turbo STT** - Fast, accurate speech-to-text
+- **OpenAI TTS** - Natural voice synthesis
 
 ### Database
-- **PostgreSQL 16** with JSONB support
+- **PostgreSQL 16** - Robust relational database with JSONB support
 
 ### DevOps
-- **Docker & Docker Compose** for containerization
-- **GitHub Actions** ready for CI/CD
+- **Docker & Docker Compose** - Containerized deployment
+- **GitHub Actions** - CI/CD pipeline ready
 
 ---
 
-## 📈 Performance Metrics
+## 🛡️ Security
 
-- **Question Generation**: ~2-3 seconds
-- **Audio Transcription**: ~1-2 seconds per 30s audio
-- **AI Evaluation**: ~3-5 seconds (multi-agent)
-- **TTS Generation**: ~1-2 seconds per question
-
----
-# 🆕 New User Setup Guide
-
-## Overview
-When a new user registers, they need to complete their interview profile before starting an interview. This guide explains the setup process and database structure.
+- **JWT Authentication** - Token-based auth with configurable expiration
+- **Password Hashing** - bcrypt with 12 salt rounds
+- **Tab Switch Detection** - Monitors focus with 3-strike policy
+- **Session Validation** - Server-side session integrity checks
+- **CORS Protection** - Restricted to trusted origins
+- **SQL Injection Prevention** - Parameterized queries via TypeORM
+- **Input Validation** - Class-validator on all endpoints
 
 ---
 
-## 🗄️ Database Structure for New Users
+## 🎯 Interview Flow
 
-### Automatic User Creation (Handled by Backend)
-When a user registers through `/auth/register`, the system automatically:
-1. Creates a `users` table entry with email and hashed password
-2. Generates a UUID for the user
-3. Returns a JWT token
-
-### Interview Profile Setup Required
-**New users must complete their profile before starting interviews.**
-
-#### Manual Database Entry (For Testing/Admin)
-If you need to manually create a profile for a user:
-
-```sql
--- Replace these values with actual user data
-INSERT INTO interview_profiles (
-  user_id, 
-  email, 
-  role, 
-  interview_type, 
-  years_of_experience, 
-  skills,
-  total_questions
-)
-VALUES (
-  'USER_UUID_HERE',           -- Get this from users table
-  'user@example.com',          -- Must match user email
-  'Software Engineer',         -- Job role
-  'Technical',                 -- Interview type
-  3.0,                         -- Years of experience
-  ARRAY[                       -- Skills array
-    'JavaScript',
-    'React',
-    'Node.js',
-    'PostgreSQL',
-    'System Design'
-  ],
-  5                            -- Number of questions (1-20)
-);
-```
-#### Query to Find User UUID
-```sql
-SELECT id, email, created_at 
-FROM users 
-WHERE email = 'user@example.com';
-```
+1. **Profile Setup** → Enter role, skills, and experience
+2. **Session Creation** → Configure number of questions (1-20)
+3. **Question Loop** (for each question):
+   - AI generates adaptive question
+   - TTS reads question aloud
+   - Record voice answer
+   - Real-time transcription feedback
+   - Multi-agent evaluation
+4. **Results Dashboard** → Comprehensive analytics and feedback
 
 ---
 
-## 🔗 Useful Links
+## 🔗 Resources
 
-- [Groq API Documentation](https://console.groq.com/docs)
-- [OpenAI API Documentation](https://platform.openai.com/docs)
+- [Groq Documentation](https://console.groq.com/docs)
+- [OpenAI API Reference](https://platform.openai.com/docs)
 - [NestJS Documentation](https://docs.nestjs.com)
-- [TypeORM Documentation](https://typeorm.io)
 - [React Documentation](https://react.dev)
+- [TypeORM Guide](https://typeorm.io)
+
+---
