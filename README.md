@@ -9,7 +9,7 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 - [Features](#-features)
 - [Architecture](#️-architecture)
 - [Quick Start](#-quick-start)
-- [Documentation](#-documentation)
+- [Documentation (AI SDK, API, Database Schema)](#-documentation)
 - [Tech Stack](#-tech-stack)
 - [Security](#️-security)
 - [Interview Flow](#-interview-flow)
