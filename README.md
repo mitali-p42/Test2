@@ -19,13 +19,19 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 
 ## 🌟 Features
 
+## Login and Register
+- **Recruiter** - Recruiters can make their own account or login once they register. Once Registered they are taken to the Create Profile for Candidates page where they can make Interview profiles for candidates to review and add skills required for the role they want the candidate to interview for. They can also view the profiles for candidates that they have generated. An interview profile contains details like the Candidate Email, Company Name, Role, Interview Type, Years of Experience, Required Skill, Total Questions (1-20) for the Interview.
+
+- **Candidate** - Candidate can make their own account and login once they register. If a Interview profile for candidate is not made by Recruiter, they get a Warning asking to check with the Recruiter. If the Interview Profile exists, and once the candidate logs in they are taken to Interview Home page to review their qualifications and browser settings. Once confirmed, they are taken to the Interview Page to Interview.
+
+
 ### Interview Experience
 - **🎙️ Real-Time Voice Recording** - Browser-native speech recognition with live transcription
 - **🤖 AI Question Generation** - Dynamic, role and experience level specific questions using LLaMA 3.3 70B. With good diversity between Interview categories and difficulty levels. The skills fed by the recruiters are used to prepare the questions as well.
 - **🔊 Natural Voice Prompts** - Text-to-speech with OpenAI's voice synthesis
 - **💡 Smart Hints** - Context-aware guidance for challenging (hard-level) questions. If the evaluation agent evaluates the difficulty level of a question as hard, hint is displayed for the user and is logged if the user clicks on it.
 - **📊 Multi-Agent Evaluation** - Technical, communication, and role-specific assessments
-- **⚠️ Anti-Cheating System** - Tab switch detection with 3-strike termination of interview
+- **🚨 Anti-Cheating System** - Tab switch detection with 3-strike termination
 
 ### Intelligence & Analysis
 - **Adaptive Difficulty** - Questions scaled to experience level (easy/medium/hard)
@@ -97,27 +103,30 @@ A full-stack voice-based interview system with real-time speech recognition, AI-
 ```bash
 # Clone the repository
 git clone https://github.com/mitali-p42/Interview-Agent.git
-cd Interview-Agent
+cd ai-interview-platform
 
 # Configure backend environment
 cd backend
-cp .env.example .env
 # Edit .env with your API keys (see below)
-
-# Configure frontend environment
-cd ../frontend
-cp .env.example .env
 
 # Start all services
 cd ..
 docker-compose up -d
 
+# (Optional) Check running containers
+docker ps
+
+# (Optional)Check logs of any service (use the container name or ID)
+docker logs <container_id_or_name>
+
 # Access the application
 # Frontend: http://localhost:5173
 # Backend:  http://localhost:4000
 # Database: localhost:5432
-```
 
+# Shut down all services once tested
+docker-compose down -v
+```
 ### Environment Configuration
 
 **backend/.env**
@@ -145,8 +154,9 @@ VITE_API_BASE=http://localhost:4000
 ### First Time Setup
 
 1. **Register a new account** at `http://localhost:5173/register`
-2. **Complete your profile** - role, skills, experience level
-3. **Start your first interview** with 5 sample questions
+2. **If Recruiter, create candidate profile** - role, skills, experience level,  interview type
+3. **If Candidate, review qualifications** - role, experience level, interview type, mic settings, browser compatibility
+3. **Start your first interview** with 5 sample questions by default. Manually trigger stop recording or be silent for 6 seconds.
 
 ---
 
@@ -191,8 +201,6 @@ VITE_API_BASE=http://localhost:4000
 
 ### DevOps
 - **Docker & Docker Compose** - Containerized deployment
-- **GitHub Actions** - CI/CD pipeline ready
-
 ---
 
 ## 🛡️ Security
@@ -201,9 +209,7 @@ VITE_API_BASE=http://localhost:4000
 - **Password Hashing** - bcrypt with 12 salt rounds
 - **Tab Switch Detection** - Monitors focus with 3-strike policy
 - **Session Validation** - Server-side session integrity checks
-- **CORS Protection** - Restricted to trusted origins
 - **SQL Injection Prevention** - Parameterized queries via TypeORM
-- **Input Validation** - Class-validator on all endpoints
 
 ---
 
