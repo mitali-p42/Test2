@@ -243,7 +243,62 @@ Each answer receives scores (0-100) across 6 dimensions:
 - **TTS Generation**: ~1-2 seconds per question
 
 ---
+# 🆕 New User Setup Guide
 
+## Overview
+When a new user registers, they need to complete their interview profile before starting an interview. This guide explains the setup process and database structure.
+
+---
+
+## 🗄️ Database Structure for New Users
+
+### Automatic User Creation (Handled by Backend)
+When a user registers through `/auth/register`, the system automatically:
+1. Creates a `users` table entry with email and hashed password
+2. Generates a UUID for the user
+3. Returns a JWT token
+
+### Interview Profile Setup Required
+**New users must complete their profile before starting interviews.**
+
+#### Manual Database Entry (For Testing/Admin)
+If you need to manually create a profile for a user:
+
+```sql
+-- Replace these values with actual user data
+INSERT INTO interview_profiles (
+  user_id, 
+  email, 
+  role, 
+  interview_type, 
+  years_of_experience, 
+  skills,
+  total_questions
+)
+VALUES (
+  'USER_UUID_HERE',           -- Get this from users table
+  'user@example.com',          -- Must match user email
+  'Software Engineer',         -- Job role
+  'Technical',                 -- Interview type
+  3.0,                         -- Years of experience
+  ARRAY[                       -- Skills array
+    'JavaScript',
+    'React',
+    'Node.js',
+    'PostgreSQL',
+    'System Design'
+  ],
+  5                            -- Number of questions (1-20)
+);
+```
+#### Query to Find User UUID
+```sql
+SELECT id, email, created_at 
+FROM users 
+WHERE email = 'user@example.com';
+```
+
+---
 
 ## 🔗 Useful Links
 
