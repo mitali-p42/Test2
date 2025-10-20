@@ -25,35 +25,39 @@ export class UsersService {
   }
 
   async findByIdWithProfile(id: string) {
-    return this.repo
-      .createQueryBuilder('u')
-      .leftJoin('interview_profiles', 'ip', 'ip.user_id = u.id')
-      .where('u.id = :id', { id })
-      .select([
-        'u.id AS id',
-        'u.email AS email',
-        'u.user_type AS "userType"',
-        'u.created_at AS "createdAt"',
-        'ip.role AS role',
-        'ip.interview_type AS "interviewType"',
-        'ip.years_of_experience AS "yearsOfExperience"',
-        'ip.skills AS skills', 
-        'ip.total_questions AS "totalQuestions"',
-        'ip.company_name AS "companyName"',
-        'ip.created_by_recruiter AS "createdByRecruiter"',
-      ])
-      .getRawOne<{
-        id: string;
-        email: string;
-        userType: 'candidate' | 'recruiter';
-        createdAt: string;
-        role: string | null;
-        interviewType: string | null;
-        yearsOfExperience: number | null;
-        skills: string[] | null;
-        totalQuestions: number | null;
-        companyName: string | null;
-        createdByRecruiter: boolean | null;
-      }>();
-  }
+  console.log('🔍 findByIdWithProfile called with ID:', id);
+  
+  const result = await this.repo
+    .createQueryBuilder('u')
+    .leftJoin('interview_profiles', 'ip', 'ip.user_id = u.id')
+    .where('u.id = :id', { id })
+    .select([
+      'u.id AS id',
+      'u.email AS email',
+      'u.user_type AS "userType"',
+      'u.created_at AS "createdAt"',
+      'ip.role AS role',
+      'ip.interview_type AS "interviewType"',
+      'ip.years_of_experience AS "yearsOfExperience"',
+      'ip.skills AS skills', 
+      'ip.total_questions AS "totalQuestions"',
+      'ip.company_name AS "companyName"',
+      'ip.created_by_recruiter AS "createdByRecruiter"',
+    ])
+    .getRawOne<{
+      id: string;
+      email: string;
+      userType: 'candidate' | 'recruiter';
+      createdAt: string;
+      role: string | null;
+      interviewType: string | null;
+      yearsOfExperience: number | null;
+      skills: string[] | null;
+      totalQuestions: number | null;
+      companyName: string | null;
+      createdByRecruiter: boolean | null;
+    }>();
+  
+  return result;
+}
 }

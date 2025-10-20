@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { api } from '../api';
 
 type UserType = 'candidate' | 'recruiter';
@@ -38,17 +38,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return stored as UserType | null;
   });
   const [loading, setLoading] = useState<boolean>(!!token);
+  
+  // 🔥 FIX: Use a ref to track the current token being fetched
+  const currentTokenRef = useRef<string | null>(token);
 
   async function fetchUserData(authToken: string) {
-    console.log('🔐 Fetching user data with token...');
-    
-    // ✅ CRITICAL: Clear old user data FIRST
+    if (authToken !== currentTokenRef.current) {
+      console.log('⏭️ Token changed, aborting stale fetch');
+      return;
+    }
+
     setUser(null);
-    
     setLoading(true);
     
     try {
-      // Extract userType from JWT token as backup
       let tokenUserType: UserType | null = null;
       try {
         const payload = JSON.parse(atob(authToken.split('.')[1]));
@@ -58,20 +61,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('⚠️ Could not decode JWT:', err);
       }
       
+      // 🔥 FIX: Check again before fetch
+      if (authToken !== currentTokenRef.current) {
+        console.log('⏭️ Token changed before fetch, aborting');
+        return;
+      }
+
       const me = await fetch(`${import.meta.env.VITE_API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });      
+      
+      // 🔥 FIX: Check again after fetch
+      if (authToken !== currentTokenRef.current) {
+        console.log('⏭️ Token changed after fetch, discarding results');
+        return;
+      }
       
       if (me.ok) {
         const userData = await me.json();
         console.log('✅ User data fetched:', userData);
         
-        // If backend returns null userType, use the one from JWT token
+        // 🔥 FIX: Verify email matches JWT to catch backend issues
+        try {
+          const jwtPayload = JSON.parse(atob(authToken.split('.')[1]));
+          const jwtEmail = jwtPayload.email || jwtPayload.sub;
+          
+          if (jwtEmail && userData.email && jwtEmail !== userData.email) {
+            console.error('❌ EMAIL MISMATCH!', {
+              jwtEmail,
+              userDataEmail: userData.email,
+              message: 'Backend returned wrong user data!'
+            });
+            // This is a backend bug - the JWT is correct but /auth/me returned wrong user
+            // For now, we'll use the data but log the error
+          }
+        } catch (err) {
+          console.warn('Could not verify email match:', err);
+        }
+        
         if (!userData.userType && tokenUserType) {
           userData.userType = tokenUserType;
         }
         
-        // If we still don't have userType, something is very wrong
         if (!userData.userType) {
           console.error('❌ No userType available from backend or token!');
           const storedUserType = localStorage.getItem('userType') as UserType;
@@ -82,7 +113,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         
-        // ✅ Set user and userType together
+        // 🔥 FIX: Final check before setting state
+        if (authToken !== currentTokenRef.current) {
+          console.log('⏭️ Token changed, discarding user data');
+          return;
+        }
+
         setUser(userData);
         setUserType(userData.userType || tokenUserType);
         
@@ -102,26 +138,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('❌ Failed to fetch user data:', err);
-      const storedUserType = localStorage.getItem('userType') as UserType;
-      if (storedUserType) {
-        setUserType(storedUserType);
-      } else {
-        console.error('❌ No stored userType, logging out');
-        logout();
+      if (authToken === currentTokenRef.current) {
+        const storedUserType = localStorage.getItem('userType') as UserType;
+        if (storedUserType) {
+          setUserType(storedUserType);
+        } else {
+          console.error('❌ No stored userType, logging out');
+          logout();
+        }
       }
     } finally {
-      setLoading(false);
+      if (authToken === currentTokenRef.current) {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     console.log('🔄 Token changed, current token:', token ? 'exists' : 'null');
+    currentTokenRef.current = token; // 🔥 FIX: Update ref
+    
     if (token) {
       fetchUserData(token);
     } else {
       console.log('⏭️ No token found, skipping user fetch');
       setLoading(false);
-      // ✅ Clear user when token is null
       setUser(null);
       setUserType(null);
     }
@@ -130,15 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(email: string, password: string) {
     console.log('🔐 Logging in as:', email);
     
-    // ✅ Clear everything first - INCLUDING user state immediately
+    // 🔥 FIX: Clear the current token ref FIRST
+    currentTokenRef.current = null;
+    
     setUser(null);
     setUserType(null);
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('userType');
-    
-    // ✅ Small delay to ensure React state updates
-    await new Promise(resolve => setTimeout(resolve, 100));
     
     const data = await api<{ access_token: string; userType: UserType }>(`/auth/login`, {
       method: 'POST',
@@ -147,25 +187,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     console.log('✅ Login successful for:', email);
     
-    // ✅ Set token last to trigger useEffect with clean state
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('userType', data.userType);
     setUserType(data.userType);
-    setToken(data.access_token); // This triggers useEffect to fetch user data
+    
+    // 🔥 FIX: Update ref before setting token
+    currentTokenRef.current = data.access_token;
+    setToken(data.access_token);
   }
 
   async function register(email: string, password: string, userType: UserType) {
     console.log('📝 Registering as:', email, userType);
     
-    // Clear any existing auth data first
+    // 🔥 FIX: Clear the current token ref FIRST
+    currentTokenRef.current = null;
+    
     setUser(null);
     setUserType(null);
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('userType');
-    
-    // Small delay to ensure React state updates
-    await new Promise(resolve => setTimeout(resolve, 100));
     
     const data = await api<{ access_token: string; userType: UserType }>(`/auth/register`, {
       method: 'POST',
@@ -177,7 +218,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('userType', data.userType);
     setUserType(data.userType);
-    setToken(data.access_token); // This triggers useEffect to fetch user data
+    
+    // 🔥 FIX: Update ref before setting token
+    currentTokenRef.current = data.access_token;
+    setToken(data.access_token);
   }
 
   async function refreshUser() {
@@ -189,6 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function logout() {
     console.log('👋 Logging out');
+    currentTokenRef.current = null; // 🔥 FIX: Clear ref
     localStorage.removeItem('token');
     localStorage.removeItem('userType');
     setToken(null);
