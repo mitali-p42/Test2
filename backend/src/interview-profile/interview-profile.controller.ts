@@ -111,7 +111,6 @@ export class InterviewProfileController {
     };
   }
 
-  // 🆕 Recruiter creates candidate profile
   @UseGuards(JwtAuthGuard)
   @Post('create-candidate')
   async createCandidateProfile(
@@ -157,7 +156,6 @@ export class InterviewProfileController {
     };
   }
 
-  // 🆕 Get all candidates created by recruiter
   @UseGuards(JwtAuthGuard)
   @Get('my-candidates')
   async getMyCandidates(@Req() req: AuthedRequest) {

@@ -67,10 +67,6 @@ export class InterviewController {
         throw new HttpException('No audio file uploaded', HttpStatus.BAD_REQUEST);
       }
 
-      console.log('🎤 Transcribing chunk:', {
-        size: file.size,
-        hasContext: !!body.previousContext,
-      });
 
       const transcript = await this.service.transcribeAudioChunk(
         file.buffer,
@@ -96,12 +92,7 @@ export class InterviewController {
     try {
       const result = await this.service.recordTabSwitch(sessionId);
       
-      console.log('📊 Tab switch recorded:', {
-        sessionId,
-        count: result.tabSwitches,
-        shouldTerminate: result.shouldTerminate,
-      });
-
+      
       return {
         tabSwitches: result.tabSwitches,
         shouldTerminate: result.shouldTerminate,
@@ -150,19 +141,11 @@ export class InterviewController {
     @Body() body: { yearsOfExperience?: number | string },
   ) {
     try {
-      console.log('📝 Generating next question for session:', sessionId);
-      
       const result = await this.service.generateNextQuestion(
         sessionId,
         body.yearsOfExperience || 0,
       );
 
-      console.log('✅ Returning question with difficulty:', {
-        questionNumber: result.questionNumber,
-        difficulty: result.difficulty,
-        category: result.category,
-        hasAudio: !!result.audioBuffer,
-      });
 
       return {
         question: result.question,
@@ -187,8 +170,6 @@ export class InterviewController {
     @Body() body: { questionNumber: number },
   ) {
     try {
-      console.log('💡 Hint requested:', { sessionId, questionNumber: body.questionNumber });
-      
       const hint = await this.service.getQuestionHint(sessionId, body.questionNumber);
       
       console.log('✅ Hint generated successfully');
@@ -222,12 +203,7 @@ export class InterviewController {
     @Body() body: { questionNumber: string; yearsOfExperience?: string },
     @UploadedFile() file: Express.Multer.File,
   ) {
-    console.log('📥 Received answer submission:', {
-      sessionId,
-      questionNumber: body.questionNumber,
-      hasFile: !!file,
-      fileSize: file?.size,
-    });
+    
     
     if (!file) {
       throw new HttpException('No audio file uploaded', HttpStatus.BAD_REQUEST);

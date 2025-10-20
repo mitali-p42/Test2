@@ -33,14 +33,8 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    console.log('🔍 auth.service.me() called with userId:', userId);
     const user = await this.users.findByIdWithProfile(userId);
 
-    if (!userId) {
-      console.error('❌ userId is undefined in me() method!');
-      throw new UnauthorizedException('Invalid user ID from token');
-    }
-   
     if (!user) {
       
       // Fall back to basic user lookup
@@ -79,7 +73,6 @@ export class AuthService {
     }
 
     const hasProfile = !!(user.role || user.interviewType);
-    console.log('✅ Returning user data with hasProfile:', hasProfile);
 
     return {
       id: user.id,
